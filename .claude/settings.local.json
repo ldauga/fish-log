@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:minecraft-heads.com)",
+      "WebSearch",
+      "WebFetch(domain:mcheads.ru)"
+    ]
+  }
+}

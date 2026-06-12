@@ -1,0 +1,34 @@
+# Gradle
+.gradle/
+build/
+out/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# VS Code
+.vscode/
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# Fabric Loom cache
+.loom/
+
+# Run directory (dev Minecraft instance)
+run/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Compiled output
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar

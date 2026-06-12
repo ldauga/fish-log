@@ -1,0 +1,170 @@
+buildscript {
+    repositories {
+        maven { url 'https://maven.fabricmc.net/' }
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'net.fabricmc:tiny-remapper:0.10.4'
+        classpath 'net.fabricmc:mapping-io:0.6.1'
+    }
+}
+
+plugins {
+    id 'fabric-loom' version '1.8-SNAPSHOT'
+    id 'maven-publish'
+}
+
+import net.fabricmc.tinyremapper.TinyRemapper
+import net.fabricmc.tinyremapper.OutputConsumerPath
+import net.fabricmc.tinyremapper.IMappingProvider
+import net.fabricmc.mappingio.MappingReader
+import net.fabricmc.mappingio.tree.MemoryMappingTree
+import java.nio.file.FileSystems
+import java.nio.file.Files
+
+version = project.mod_version
+group   = project.maven_group
+
+base {
+    archivesName = project.archives_base_name
+}
+
+loom {
+    runs {
+        client {
+            programArgs '--username', 'Sam_Kawai'
+        }
+    }
+}
+
+repositories {}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings  "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+}
+
+processResources {
+    inputs.property "version", project.version
+    filteringCharset "UTF-8"
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = "UTF-8"
+    options.release  = 21
+}
+
+java {
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+// ── Fix pour le bug Loom 1.8 : Jar.copy() écrase la sortie de RemapAction ──
+// Ce doLast re-applique TinyRemapper après que Jar.copy() a vidé le jar.
+afterEvaluate {
+    remapJar.doLast {
+        def devJar  = tasks.jar.archiveFile.get().asFile.toPath()
+        def prodJar = tasks.remapJar.archiveFile.get().asFile.toPath()
+
+        // Récupère le jar Yarn depuis la configuration 'mappings' de Loom
+        def yarnJar = project.configurations.getByName("mappings")
+            .resolvedConfiguration.resolvedArtifacts
+            .find { it.name == "yarn" }?.file?.toPath()
+
+        if (!yarnJar || !Files.exists(yarnJar))
+            throw new GradleException("[FishLog] Yarn mappings jar introuvable dans la config 'mappings'")
+
+        // Lecture des mappings depuis le jar Yarn
+        def tree   = new MemoryMappingTree()
+        def yarnFs = FileSystems.newFileSystem(yarnJar, (ClassLoader) null)
+        try {
+            MappingReader.read(yarnFs.getPath("mappings/mappings.tiny"), tree)
+        } finally {
+            yarnFs.close()
+        }
+
+        // Table officiel → named pour remailler les descripteurs
+        def offToNamed = [:]
+        for (c in tree.classes) {
+            def off   = c.srcName
+            def named = c.getName("named")
+            if (off && named) offToNamed[off] = named
+        }
+
+        // Remplace les noms officiels dans un descripteur par les noms named
+        def remapDesc = { String desc ->
+            if (!desc) return desc
+            def sb = new StringBuilder()
+            int i  = 0
+            while (i < desc.length()) {
+                if (desc.charAt(i) == (char) 'L') {
+                    int end = desc.indexOf(';', i + 1)
+                    if (end < 0) { sb.append(desc.charAt(i)); i++; continue }
+                    def cn = desc.substring(i + 1, end)
+                    sb.append('L').append(offToNamed.getOrDefault(cn, cn)).append(';')
+                    i = end + 1
+                } else {
+                    sb.append(desc.charAt(i)); i++
+                }
+            }
+            sb.toString()
+        }
+
+        // IMappingProvider : named → intermediary
+        def provider = { out ->
+            for (c in tree.classes) {
+                def named = c.getName("named")
+                def inter = c.getName("intermediary")
+                if (!named || !inter) continue
+                out.acceptClass(named, inter)
+                for (f in c.fields) {
+                    def fn = f.getName("named")
+                    def fi = f.getName("intermediary")
+                    def fd = f.srcDesc ? remapDesc(f.srcDesc) : null
+                    if (fn && fi && fd)
+                        out.acceptField(new IMappingProvider.Member(named, fn, fd), fi)
+                }
+                for (m in c.methods) {
+                    def mn = m.getName("named")
+                    def mi = m.getName("intermediary")
+                    def md = m.srcDesc ? remapDesc(m.srcDesc) : null
+                    if (mn && mi && md)
+                        out.acceptMethod(new IMappingProvider.Member(named, mn, md), mi)
+                }
+            }
+        } as IMappingProvider
+
+        // Exécution de TinyRemapper
+        def remapper = TinyRemapper.newRemapper()
+            .withMappings(provider)
+            .ignoreConflicts(true)
+            .build()
+
+        try {
+            def output = new OutputConsumerPath.Builder(prodJar).build()
+            try {
+                output.addNonClassFiles(devJar)
+                // Classpath needed so TinyRemapper can resolve method hierarchy
+                project.configurations.compileClasspath.each { f ->
+                    if (f.exists() && f.name.endsWith('.jar')) {
+                        try { remapper.readClassPath(f.toPath()) } catch (Exception ignored) {}
+                    }
+                }
+                remapper.readInputs(devJar)
+                remapper.apply(output)
+            } finally {
+                output.close()
+            }
+        } finally {
+            remapper.finish()
+        }
+
+        println "[FishLog] Remap OK → ${prodJar.fileName}  (${Files.size(prodJar)} bytes)"
+    }
+}
