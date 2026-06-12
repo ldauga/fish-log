@@ -45,6 +45,7 @@ public class FishStatsScreen extends Screen {
 
     // ── Couleurs ARGB par appât ───────────────────────────────────────────────
     private static final Map<String, Integer> BAIT_COL = new LinkedHashMap<>();
+    private static final Map<String, Integer> BAIT_COL_NORM = new HashMap<>();
     static {
         // bleu ciel
         BAIT_COL.put("Ver Luisant",       0xFF4488FF);
@@ -65,6 +66,8 @@ public class FishStatsScreen extends Screen {
         BAIT_COL.put("Rune Atlante",      0xFF2244AA);
         // vert clair
         BAIT_COL.put("Mouche Commune",    0xFFAAAAAA);
+        // Index normalisé (sans accents, sans casse) pour matcher les noms du serveur
+        BAIT_COL.forEach((k, v) -> BAIT_COL_NORM.put(FishTextureCache.normalize(k), v));
     }
 
     // ── Données pré-calculées à l'init ────────────────────────────────────────
@@ -1086,11 +1089,9 @@ public class FishStatsScreen extends Screen {
     private static int baitColor(String bait) {
         Integer c = BAIT_COL.get(bait);
         if (c != null) return c;
-        // Fallback insensible à la casse (noms serveur parfois différents de la map)
-        String lower = bait.toLowerCase(Locale.ROOT);
-        for (Map.Entry<String, Integer> e : BAIT_COL.entrySet()) {
-            if (e.getKey().toLowerCase(Locale.ROOT).equals(lower)) return e.getValue();
-        }
+        // Fallback normalisé : supprime accents + casse (ex: "Lisappât" → "lisappat")
+        c = BAIT_COL_NORM.get(FishTextureCache.normalize(bait));
+        if (c != null) return c;
         int h = Math.abs(bait.hashCode());
         int r = 128 + (h & 0x7F);
         int g = 128 + ((h >> 8) & 0x7F);
