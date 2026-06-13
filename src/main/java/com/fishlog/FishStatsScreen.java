@@ -32,40 +32,33 @@ public class FishStatsScreen extends Screen {
     // ── Couleurs ARGB par rareté ──────────────────────────────────────────────
     private static final Map<String, Integer> RARITY_COL = new LinkedHashMap<>();
     static {
-        RARITY_COL.put("COMMUN",     0xFFAAAAAA);
-        RARITY_COL.put("RARE",       0xFF4488FF);
-        RARITY_COL.put("ÉPIQUE",     0xFFAA44FF);
-        RARITY_COL.put("ÉMISSAIRE",  0xFF44CCAA);
-        RARITY_COL.put("LÉGENDAIRE", 0xFFFFCC00);
-        RARITY_COL.put("MYTHIQUE",   0xFFFF4444);
-        RARITY_COL.put("",    0xFFFFFFFF);
-        RARITY_COL.put("PERDU",      0xFF888888);
-        RARITY_COL.put("ARTEFACT",   0xFFFF8844);
+        RARITY_COL.put("COMMUN",     ModColors.RARITY_COMMUN);
+        RARITY_COL.put("RARE",       ModColors.RARITY_RARE);
+        RARITY_COL.put("ÉPIQUE",     ModColors.RARITY_EPIQUE);
+        RARITY_COL.put("ÉMISSAIRE",  ModColors.RARITY_EMISSAIRE);
+        RARITY_COL.put("LÉGENDAIRE", ModColors.RARITY_LEGENDAIRE);
+        RARITY_COL.put("MYTHIQUE",   ModColors.RARITY_MYTHIQUE);
+        RARITY_COL.put("",           ModColors.RARITY_COSMIQUE);
+        RARITY_COL.put("PERDU",      ModColors.RARITY_PERDU);
+        RARITY_COL.put("ARTEFACT",   ModColors.RARITY_ARTEFACT);
     }
 
     // ── Couleurs ARGB par appât ───────────────────────────────────────────────
     private static final Map<String, Integer> BAIT_COL = new LinkedHashMap<>();
     private static final Map<String, Integer> BAIT_COL_NORM = new HashMap<>();
     static {
-        // bleu ciel
-        BAIT_COL.put("Ver Luisant",       0xFF4488FF);
-        BAIT_COL.put("Slime Royal",       0xFF4488FF);
-        // gris
-        BAIT_COL.put("Aimant",            0xFF888888);
-        // violet
-        BAIT_COL.put("Appat Runic",       0xFFAA44FF);
-        BAIT_COL.put("Leurre Mecanique",  0xFFAA44FF);
-        // orange
-        BAIT_COL.put("Companion cube",    0xFFFFCC00);
-        BAIT_COL.put("Ruche de Nimeria",  0xFFFFCC00);
-        // rouge clair
-        BAIT_COL.put("Zekappat",          0xFFFF4444);
-        BAIT_COL.put("Lisappat",          0xFFFF4444);
-        // cyan
-        BAIT_COL.put("Lanterne Abyssale", 0xFF2244AA);
-        BAIT_COL.put("Rune Atlante",      0xFF2244AA);
-        // vert clair
-        BAIT_COL.put("Mouche Commune",    0xFFAAAAAA);
+        BAIT_COL.put("Ver Luisant",       ModColors.BAIT_BLEU);
+        BAIT_COL.put("Slime Royal",       ModColors.BAIT_BLEU);
+        BAIT_COL.put("Aimant",            ModColors.BAIT_GRIS);
+        BAIT_COL.put("Appat Runic",       ModColors.BAIT_VIOLET);
+        BAIT_COL.put("Leurre Mecanique",  ModColors.BAIT_VIOLET);
+        BAIT_COL.put("Companion cube",    ModColors.BAIT_ORANGE);
+        BAIT_COL.put("Ruche de Nimeria",  ModColors.BAIT_ORANGE);
+        BAIT_COL.put("Zekappat",          ModColors.BAIT_ROUGE);
+        BAIT_COL.put("Lisappat",          ModColors.BAIT_ROUGE);
+        BAIT_COL.put("Lanterne Abyssale", ModColors.BAIT_BLEU_FONCE);
+        BAIT_COL.put("Rune Atlante",      ModColors.BAIT_BLEU_FONCE);
+        BAIT_COL.put("Mouche Commune",    ModColors.BAIT_GRIS_CLAIR);
         // Index normalisé (sans accents, sans casse) pour matcher les noms du serveur
         BAIT_COL.forEach((k, v) -> BAIT_COL_NORM.put(FishTextureCache.normalize(k), v));
     }
@@ -74,8 +67,10 @@ public class FishStatsScreen extends Screen {
     private List<FishRecord>               records;
     private List<Map.Entry<String,Integer>> rarityEntries;   // rareté → nb
     private List<Map.Entry<String,Integer>> topCount;        // poisson → nb (tous)
-    private List<Map.Entry<String,Double>>  topValue;        // poisson → total prix (tous)
+    private List<Map.Entry<String,Double>>  topValue;        // poisson → valeur selon ValueMode
     private Map<String, String>            fishRarity;       // poisson → rareté dominante
+    private Map<String, Double>            fishPriceSum, fishPriceMax, fishPriceMin;
+    private Map<String, Integer>           fishCount;
     private int[]    hourly   = new int[24];
     private double[] cumTimes;   // temps en minutes depuis le 1er
     private double[] cumValues;  // cumul des prix
@@ -101,6 +96,19 @@ public class FishStatsScreen extends Screen {
     private int baitTypesScrollOffset = 0;
     private static final int ROW_H    = 10;
     private static final int TOP_ROW_H = 12;
+
+    // ── Bouton reverse pour les listes TOP ────────────────────────────────────
+    private boolean topReversed     = false;
+    private boolean baitTopReversed = false;
+    private int topRevBtnX, topRevBtnY;
+    private int baitTopRevBtnX, baitTopRevBtnY;
+    private static final int REV_BTN_W = 14, REV_BTN_H = 9;
+
+    // ── Bouton Max / Mean / Min (top argent) ──────────────────────────────────
+    private enum ValueMode { MAX, MEAN, MIN }
+    private ValueMode valueMode = ValueMode.MEAN;
+    private int valModeBtnX, valModeBtnY;
+    private static final int VAL_MODE_BTN_W = 30, VAL_MODE_BTN_H = 9;
 
     // ── Scrollbars draggables ─────────────────────────────────────────────────
     private static final int SB_RECORDS    = 0;
@@ -164,19 +172,25 @@ public class FishStatsScreen extends Screen {
         for (FishRecord r : records)
             lastByRarity.merge(r.rarity, r.timestamp, (a, b) -> a.isAfter(b) ? a : b);
 
-        // Top 10 par nombre et par valeur
-        Map<String, Integer>  cnt = new LinkedHashMap<>();
-        Map<String, Double>   val = new LinkedHashMap<>();
+        // Top par nombre et par valeur (max / mean / min)
+        Map<String, Integer> cnt = new LinkedHashMap<>();
+        Map<String, Double>  sum = new LinkedHashMap<>();
+        Map<String, Double>  max = new LinkedHashMap<>();
+        Map<String, Double>  min = new LinkedHashMap<>();
         for (FishRecord r : records) {
             cnt.merge(r.fish, 1, Integer::sum);
-            val.merge(r.fish, r.price, Double::sum);
+            sum.merge(r.fish, r.price, Double::sum);
+            max.merge(r.fish, r.price, Math::max);
+            min.merge(r.fish, r.price, Math::min);
         }
+        fishCount    = cnt;
+        fishPriceSum = sum;
+        fishPriceMax = max;
+        fishPriceMin = min;
         topCount = cnt.entrySet().stream()
             .sorted((a,b) -> b.getValue()-a.getValue())
             .collect(Collectors.toList());
-        topValue = val.entrySet().stream()
-            .sorted((a,b) -> Double.compare(b.getValue(), a.getValue()))
-            .collect(Collectors.toList());
+        topValue = computeTopValue();
 
         // Rareté dominante par poisson (pour pastille colorée dans TOP)
         Map<String, Map<String, Integer>> fishRarCount = new LinkedHashMap<>();
@@ -277,6 +291,22 @@ public class FishStatsScreen extends Screen {
         searchField.setVisible(false);
         addDrawableChild(searchField);
         updateFiltered();
+        if (activeTab == Tab.RECORDS) setFocused(searchField);
+    }
+
+    private List<Map.Entry<String, Double>> computeTopValue() {
+        Map<String, Double> vals = new LinkedHashMap<>();
+        for (String fish : fishPriceSum.keySet()) {
+            double v = switch (valueMode) {
+                case MAX  -> fishPriceMax.get(fish);
+                case MIN  -> fishPriceMin.get(fish);
+                case MEAN -> fishPriceSum.get(fish) / fishCount.getOrDefault(fish, 1);
+            };
+            vals.put(fish, v);
+        }
+        return vals.entrySet().stream()
+            .sorted((a, b) -> Double.compare(b.getValue(), a.getValue()))
+            .collect(Collectors.toList());
     }
 
     private void updateFiltered() {
@@ -286,12 +316,20 @@ public class FishStatsScreen extends Screen {
             filteredBaitRecords = allBaitRecords;
         } else {
             filteredRecords = allRecords.stream()
-                .filter(r -> r.fish.toLowerCase().contains(q) || r.rarity.toLowerCase().contains(q))
+                .filter(r -> r.fish.toLowerCase().contains(q) || rarityForSearch(r.rarity).contains(q))
                 .collect(Collectors.toList());
             filteredBaitRecords = allBaitRecords.stream()
                 .filter(r -> r.bait.toLowerCase().contains(q))
                 .collect(Collectors.toList());
         }
+    }
+
+    // Retourne un nom de rareté lisible pour la recherche.
+    // "" (cosmique) → "cosmique" ; char non-imprimable (abyssale) → "abyssale" ; sinon casse basse.
+    private static String rarityForSearch(String rarity) {
+        if (rarity == null || rarity.isEmpty()) return "cosmique";
+        if (rarity.chars().noneMatch(Character::isLetterOrDigit)) return "abyssale";
+        return rarity.toLowerCase();
     }
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -309,7 +347,7 @@ public class FishStatsScreen extends Screen {
         int areaX = padL, areaY = padT, areaW = W - padL - padR, areaH = H - padT - padB;
 
         // Fond du panel
-        ctx.fill(areaX, areaY, areaX + areaW, areaY + areaH, 0xCC111122);
+        ctx.fill(areaX, areaY, areaX + areaW, areaY + areaH, ModColors.UI_PANEL_BG);
 
         // Onglets
         renderTabs(ctx, areaX, areaY, areaW);
@@ -318,20 +356,20 @@ public class FishStatsScreen extends Screen {
 
         if (baitMode) {
             if (allBaitRecords.isEmpty()) {
-                ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.empty.bait"), cX + cW/2, cY + cH/2, 0xFFFFFF);
+                ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.empty.bait"), cX + cW/2, cY + cH/2, ModColors.TEXT_WHITE);
                 return;
             }
             switch (activeTab) {
                 case RARITY  -> renderBaitTypes(ctx, cX, cY, cW, cH);
                 case TOP     -> renderBaitTop(ctx, cX, cY, cW, cH);
-                case SIZES   -> ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.empty.na_bait"), cX + cW/2, cY + cH/2, 0xFF888888);
+                case SIZES   -> ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.empty.na_bait"), cX + cW/2, cY + cH/2, ModColors.RARITY_UNKNOWN);
                 case HOURLY  -> renderBaitHourly(ctx, cX, cY, cW, cH);
                 case CUMUL   -> renderBaitCumul(ctx, cX, cY, cW, cH);
                 case RECORDS -> renderBaitRecords(ctx, cX, cY, cW, cH);
             }
         } else {
             if (records.isEmpty()) {
-                ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.empty.fish"), cX + cW/2, cY + cH/2, 0xFFFFFF);
+                ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.empty.fish"), cX + cW/2, cY + cH/2, ModColors.TEXT_WHITE);
                 return;
             }
             switch (activeTab) {
@@ -358,12 +396,12 @@ public class FishStatsScreen extends Screen {
             // Onglets sans leur propre footer noir → on dessine le bandeau
             boolean hasOwnFooter = activeTab == Tab.RARITY || activeTab == Tab.TOP || activeTab == Tab.RECORDS;
             if (!hasOwnFooter) {
-                ctx.fill(cX, fy, cX + cW, cY + cH, 0xFF000000);
-                ctx.fill(cX, fy, cX + cW, fy + 1, 0xFF334455);
+                ctx.fill(cX, fy, cX + cW, cY + cH, ModColors.UI_FOOTER_BG);
+                ctx.fill(cX, fy, cX + cW, fy + 1, ModColors.UI_FOOTER_LINE);
             }
             String brand = "powered by @LeLeoOriginel";
             ctx.drawTextWithShadow(textRenderer, brand,
-                cX + cW - textRenderer.getWidth(brand) - 3, fy + 2, 0xFF6688AA);
+                cX + cW - textRenderer.getWidth(brand) - 3, fy + 2, ModColors.TEXT_BRAND);
         }
 
         if (pendingTooltip != null) {
@@ -379,15 +417,15 @@ public class FishStatsScreen extends Screen {
         baitToggleBtnY = y + 1;
         ctx.fill(baitToggleBtnX, baitToggleBtnY,
             baitToggleBtnX + BAIT_TOGGLE_W, baitToggleBtnY + BAIT_TOGGLE_H,
-            baitMode ? 0xFF226633 : 0xFF223366);
+            baitMode ? ModColors.TOGGLE_BAIT_BG : ModColors.TOGGLE_FISH_BG);
         ctx.fill(baitToggleBtnX, baitToggleBtnY,
-            baitToggleBtnX + BAIT_TOGGLE_W, baitToggleBtnY + 1, 0xFF8888AA);
+            baitToggleBtnX + BAIT_TOGGLE_W, baitToggleBtnY + 1, ModColors.TOGGLE_BORDER);
         ctx.fill(baitToggleBtnX, baitToggleBtnY,
-            baitToggleBtnX + 1, baitToggleBtnY + BAIT_TOGGLE_H, 0xFF8888AA);
+            baitToggleBtnX + 1, baitToggleBtnY + BAIT_TOGGLE_H, ModColors.TOGGLE_BORDER);
         ctx.drawCenteredTextWithShadow(textRenderer,
             baitMode ? I18n.translate("fishlog.toggle.bait") : I18n.translate("fishlog.toggle.fish"),
             baitToggleBtnX + BAIT_TOGGLE_W / 2, baitToggleBtnY + 5,
-            baitMode ? 0xFF88FF88 : 0xFFAAAAFF);
+            baitMode ? ModColors.TEXT_PRICE : ModColors.BTN_TEXT_NORMAL);
 
         Tab[] tabs = Tab.values();
         String[] lbl = baitMode
@@ -399,9 +437,9 @@ public class FishStatsScreen extends Screen {
             int tx = x + i * tw;
             boolean active   = tabs[i] == activeTab;
             boolean disabled = baitMode && tabs[i] == Tab.SIZES;
-            ctx.fill(tx, y, tx + tw, y + 20, disabled ? 0xFF1A1A1A : active ? 0xFF334466 : 0xFF222233);
+            ctx.fill(tx, y, tx + tw, y + 20, disabled ? ModColors.TAB_DISABLED : active ? ModColors.TAB_ACTIVE : ModColors.TAB_INACTIVE);
             ctx.drawCenteredTextWithShadow(textRenderer, lbl[i], tx + tw/2, y + 6,
-                disabled ? 0xFF555555 : active ? 0xFFFFFF : 0xAAAAAA);
+                disabled ? ModColors.TAB_TEXT_DISABLED : active ? ModColors.TEXT_WHITE : ModColors.TEXT_MUTED);
         }
     }
 
@@ -416,10 +454,10 @@ public class FishStatsScreen extends Screen {
         // ── Bande cumulée ───────────────────────────────────────────────────
         int bandH = 14;
         int bx    = x + 2, bandW = w - 4;
-        ctx.fill(bx, y + 2, bx + bandW, y + 2 + bandH, 0xFF111122);
+        ctx.fill(bx, y + 2, bx + bandW, y + 2 + bandH, ModColors.CHART_BAND_BG);
         int cumX = bx;
         for (Map.Entry<String,Integer> e : rarityEntries) {
-            int col  = RARITY_COL.getOrDefault(e.getKey(), 0xFF888888);
+            int col  = RARITY_COL.getOrDefault(e.getKey(), ModColors.RARITY_UNKNOWN);
             int segW = bandW * e.getValue() / total;
             ctx.fill(cumX, y + 2, cumX + segW, y + 2 + bandH, col);
             cumX += segW;
@@ -428,13 +466,13 @@ public class FishStatsScreen extends Screen {
         // ── En-tête bandeau ─────────────────────────────────────────────────
         int hdrY = y + 2 + bandH + 2;
         int hdrH = 12;
-        ctx.fill(x, hdrY, x + w, hdrY + hdrH, 0xFF1A1A33);
-        ctx.fill(x, hdrY + hdrH - 1, x + w, hdrY + hdrH, 0xFF445566);
+        ctx.fill(x, hdrY, x + w, hdrY + hdrH, ModColors.UI_HEADER_BG);
+        ctx.fill(x, hdrY + hdrH - 1, x + w, hdrY + hdrH, ModColors.UI_HEADER_LINE);
         int barAreaX = x + 2, barAreaW = w - 4;
         int labelW   = 80, barW = barAreaW - labelW - 72;
-        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.col.rarity"),       barAreaX,                     hdrY + 2, 0xFFCC88);
-        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.col.distribution"), barAreaX + labelW,            hdrY + 2, 0xFFCC88);
-        ctx.drawTextWithShadow(textRenderer, "%",                                        barAreaX + labelW + barW + 4, hdrY + 2, 0xFFCC88);
+        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.col.rarity"),       barAreaX,                     hdrY + 2, ModColors.TEXT_HEADER_COL);
+        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.col.distribution"), barAreaX + labelW,            hdrY + 2, ModColors.TEXT_HEADER_COL);
+        ctx.drawTextWithShadow(textRenderer, "%",                                        barAreaX + labelW + barW + 4, hdrY + 2, ModColors.TEXT_HEADER_COL);
 
         // ── Liste défilable ─────────────────────────────────────────────────
         int footerH = 12;
@@ -446,24 +484,24 @@ public class FishStatsScreen extends Screen {
         int ry = listY - rarityScrollOffset * rowH;
         for (Map.Entry<String,Integer> e : rarityEntries) {
             if (ry + rowH >= listY && ry <= listY + listH) {
-                int col  = RARITY_COL.getOrDefault(e.getKey(), 0xFF888888);
+                int col  = RARITY_COL.getOrDefault(e.getKey(), ModColors.RARITY_UNKNOWN);
                 float pct = 100f * e.getValue() / total;
                 int fill  = barW * e.getValue() / maxCnt;
 
                 ctx.drawTextWithShadow(textRenderer, e.getKey(), barAreaX, ry + 1, col);
-                ctx.fill(barAreaX + labelW, ry, barAreaX + labelW + barW, ry + 9, 0xFF1A1A2A);
+                ctx.fill(barAreaX + labelW, ry, barAreaX + labelW + barW, ry + 9, ModColors.PLOT_BG);
                 ctx.fill(barAreaX + labelW, ry, barAreaX + labelW + fill, ry + 9, col & 0x99FFFFFF | 0x99000000);
                 ctx.fill(barAreaX + labelW, ry, barAreaX + labelW + fill, ry + 1, col);
                 ctx.drawTextWithShadow(textRenderer,
                     String.format("%.1f%%", pct),
-                    barAreaX + labelW + barW + 4, ry + 1, 0xCCCCCC);
+                    barAreaX + labelW + barW + 4, ry + 1, ModColors.TEXT_LIGHT);
                 int cnt = e.getValue();
                 String countStr = I18n.translate(cnt > 1 ? "fishlog.catch.plural" : "fishlog.catch", cnt);
                 java.time.LocalDateTime last = lastByRarity.get(e.getKey());
                 String secondLine = last != null
                     ? countStr + "  —  " + I18n.translate("fishlog.elapsed", formatElapsed(last))
                     : countStr;
-                ctx.drawTextWithShadow(textRenderer, secondLine, barAreaX, ry + 11, 0x99888888);
+                ctx.drawTextWithShadow(textRenderer, secondLine, barAreaX, ry + 11, ModColors.TEXT_VERY_MUTED);
             }
             ry += rowH;
         }
@@ -471,11 +509,11 @@ public class FishStatsScreen extends Screen {
 
         // ── Footer ──────────────────────────────────────────────────────────
         int fy = y + h - footerH;
-        ctx.fill(x, fy, x + w, y + h, 0xFF000000);
-        ctx.fill(x, fy, x + w, fy + 1, 0xFF334455);
+        ctx.fill(x, fy, x + w, y + h, ModColors.UI_FOOTER_BG);
+        ctx.fill(x, fy, x + w, fy + 1, ModColors.UI_FOOTER_LINE);
         ctx.drawTextWithShadow(textRenderer,
             I18n.translate(total > 1 ? "fishlog.footer.rarity.plural" : "fishlog.footer.rarity", total),
-            x + 3, fy + 2, 0xFFAAAAAA);
+            x + 3, fy + 2, ModColors.TEXT_MUTED_ARGB);
     }
 
     private void renderScaledItem(DrawContext ctx, ItemStack stack, int x, int y, int size) {
@@ -510,23 +548,45 @@ public class FishStatsScreen extends Screen {
         double maxVal = topValue.isEmpty() ? 1 : topValue.get(0).getValue();
 
         // ── En-têtes ─────────────────────────────────────────────────────────
-        ctx.fill(x, y, x + w, y + hdrH, 0xFF1A1A33);
-        ctx.fill(x + half, y, x + half + 1, y + h, 0xFF334455);
-        ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.top.by_count"), cx1 + cw1/2, y + 2, 0xFFFFFF);
-        ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.top.by_value"), cx2 + cw2/2, y + 2, 0xFFFFFF);
-        ctx.fill(x, y + hdrH - 1, x + w, y + hdrH, 0xFF445566);
+        ctx.fill(x, y, x + w, y + hdrH, ModColors.UI_HEADER_BG);
+        ctx.fill(x + half, y, x + half + 1, y + h, ModColors.UI_FOOTER_LINE);
+        ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.top.by_count"), cx1 + cw1/2, y + 2, ModColors.TEXT_WHITE);
+        ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.top.by_value"), cx2 + cw2/2, y + 2, ModColors.TEXT_WHITE);
+        ctx.fill(x, y + hdrH - 1, x + w, y + hdrH, ModColors.UI_HEADER_LINE);
+
+        // ── Bouton reverse ────────────────────────────────────────────────────
+        topRevBtnX = x + w - sbW - REV_BTN_W - 2;
+        topRevBtnY = y + 1;
+        ctx.fill(topRevBtnX, topRevBtnY, topRevBtnX + REV_BTN_W, topRevBtnY + REV_BTN_H,
+            topReversed ? ModColors.BTN_REV_ACTIVE : ModColors.BTN_REV_NORMAL);
+        ctx.fill(topRevBtnX, topRevBtnY, topRevBtnX + REV_BTN_W, topRevBtnY + 1, ModColors.TOGGLE_BORDER);
+        ctx.fill(topRevBtnX, topRevBtnY, topRevBtnX + 1, topRevBtnY + REV_BTN_H, ModColors.TOGGLE_BORDER);
+        ctx.drawCenteredTextWithShadow(textRenderer, topReversed ? "▲" : "▼",
+            topRevBtnX + REV_BTN_W / 2, topRevBtnY + 1, topReversed ? ModColors.TEXT_PRICE : ModColors.BTN_TEXT_NORMAL);
+
+        // ── Bouton Max / Mean / Min ───────────────────────────────────────────
+        valModeBtnX = topRevBtnX - VAL_MODE_BTN_W - 2;
+        valModeBtnY = y + 1;
+        ctx.fill(valModeBtnX, valModeBtnY, valModeBtnX + VAL_MODE_BTN_W, valModeBtnY + VAL_MODE_BTN_H,
+            ModColors.BTN_NORMAL);
+        ctx.fill(valModeBtnX, valModeBtnY, valModeBtnX + VAL_MODE_BTN_W, valModeBtnY + 1, ModColors.TOGGLE_BORDER);
+        ctx.fill(valModeBtnX, valModeBtnY, valModeBtnX + 1, valModeBtnY + VAL_MODE_BTN_H, ModColors.TOGGLE_BORDER);
+        String valModeLabel = switch (valueMode) { case MAX -> "MAX"; case MEAN -> "MEAN"; case MIN -> "MIN"; };
+        ctx.drawCenteredTextWithShadow(textRenderer, valModeLabel,
+            valModeBtnX + VAL_MODE_BTN_W / 2, valModeBtnY + 1, ModColors.BTN_TEXT_NORMAL);
 
         // ── Listes scrollables ────────────────────────────────────────────────
         int listY = y + hdrH;
         ctx.enableScissor(x, listY, x + w, listY + listH);
 
         for (int i = 0; i < topCount.size(); i++) {
+            int idx = topReversed ? topCount.size() - 1 - i : i;
             int ri  = i - topScrollOffset;
             int by  = listY + ri * TOP_ROW_H;
             if (by + TOP_ROW_H < listY || by > listY + listH) continue;
-            var e   = topCount.get(i);
-            int col = RARITY_COL.getOrDefault(fishRarity.getOrDefault(e.getKey(), ""), 0xFF888888);
-            ctx.fill(cx1, by, cx1 + cw1, by + TOP_ROW_H, (i % 2 == 0) ? 0xFF161622 : 0xFF1C1C2A);
+            var e   = topCount.get(idx);
+            int col = RARITY_COL.getOrDefault(fishRarity.getOrDefault(e.getKey(), ""), ModColors.RARITY_UNKNOWN);
+            ctx.fill(cx1, by, cx1 + cw1, by + TOP_ROW_H, (i % 2 == 0) ? ModColors.ROW_EVEN : ModColors.ROW_ODD);
 
             // Icône ou pastille rareté
             String rar1 = fishRarity.getOrDefault(e.getKey(), "");
@@ -542,22 +602,23 @@ public class FishStatsScreen extends Screen {
             int valW  = 24;
             int barW  = cw1 - dotS - 4 - valW - 2;
             int fill  = (int)(barW * e.getValue() / (double) maxCnt);
-            ctx.fill(barX, by + 2, barX + barW, by + 2 + dotS, 0xFF1A2A1A);
+            ctx.fill(barX, by + 2, barX + barW, by + 2 + dotS, ModColors.BAR_BG);
             ctx.fill(barX, by + 2, barX + fill, by + 2 + dotS, 0x883388CC | 0xFF000000);
-            ctx.drawTextWithShadow(textRenderer, e.getKey(), barX + 2, by + 2, 0xFFFFFF);
+            ctx.drawTextWithShadow(textRenderer, e.getKey(), barX + 2, by + 2, ModColors.TEXT_WHITE);
             String cntShort = formatShort(e.getValue());
             int cntTx = cx1 + cw1 - valW;
-            ctx.drawTextWithShadow(textRenderer, cntShort, cntTx, by + 2, 0xDDDDDD);
+            ctx.drawTextWithShadow(textRenderer, cntShort, cntTx, by + 2, ModColors.TEXT_MEDIUM);
             checkTooltip(cntTx, by + 2, cntShort, I18n.translate("fishlog.top.catches", e.getValue()));
         }
 
         for (int i = 0; i < topValue.size(); i++) {
+            int idx = topReversed ? topValue.size() - 1 - i : i;
             int ri  = i - topScrollOffset;
             int by  = listY + ri * TOP_ROW_H;
             if (by + TOP_ROW_H < listY || by > listY + listH) continue;
-            var e   = topValue.get(i);
-            int col = RARITY_COL.getOrDefault(fishRarity.getOrDefault(e.getKey(), ""), 0xFF888888);
-            ctx.fill(cx2, by, cx2 + cw2, by + TOP_ROW_H, (i % 2 == 0) ? 0xFF161622 : 0xFF1C1C2A);
+            var e   = topValue.get(idx);
+            int col = RARITY_COL.getOrDefault(fishRarity.getOrDefault(e.getKey(), ""), ModColors.RARITY_UNKNOWN);
+            ctx.fill(cx2, by, cx2 + cw2, by + TOP_ROW_H, (i % 2 == 0) ? ModColors.ROW_EVEN : ModColors.ROW_ODD);
 
             String rar2 = fishRarity.getOrDefault(e.getKey(), "");
             ItemStack icon2 = FishTextureCache.getItemStack(e.getKey(), rar2);
@@ -571,12 +632,12 @@ public class FishStatsScreen extends Screen {
             int valW = 30;
             int barW = cw2 - dotS - 4 - valW - 2;
             int fill = (int)(barW * e.getValue() / maxVal);
-            ctx.fill(barX, by + 2, barX + barW, by + 2 + dotS, 0xFF1A2A1A);
+            ctx.fill(barX, by + 2, barX + barW, by + 2 + dotS, ModColors.BAR_BG);
             ctx.fill(barX, by + 2, barX + fill, by + 2 + dotS, 0x8844CC88 | 0xFF000000);
-            ctx.drawTextWithShadow(textRenderer, e.getKey(), barX + 2, by + 2, 0xFFFFFF);
+            ctx.drawTextWithShadow(textRenderer, e.getKey(), barX + 2, by + 2, ModColors.TEXT_WHITE);
             String priceShort = formatShort(e.getValue()) + "$";
             int priceTx = cx2 + cw2 - valW;
-            ctx.drawTextWithShadow(textRenderer, priceShort, priceTx, by + 2, 0xDDDDDD);
+            ctx.drawTextWithShadow(textRenderer, priceShort, priceTx, by + 2, ModColors.TEXT_MEDIUM);
             checkTooltip(priceTx, by + 2, priceShort, String.format("%.0f$", e.getValue()));
         }
 
@@ -588,11 +649,11 @@ public class FishStatsScreen extends Screen {
 
         // ── Footer ────────────────────────────────────────────────────────────
         int fy = listY + listH;
-        ctx.fill(x, fy, x + w, fy + footerH, 0xFF000000);
-        ctx.fill(x, fy, x + w, fy + 1, 0xFF334455);
+        ctx.fill(x, fy, x + w, fy + footerH, ModColors.UI_FOOTER_BG);
+        ctx.fill(x, fy, x + w, fy + 1, ModColors.UI_FOOTER_LINE);
         ctx.drawTextWithShadow(textRenderer,
             I18n.translate(topCount.size() > 1 ? "fishlog.footer.top.plural" : "fishlog.footer.top", topCount.size()),
-            x + 3, fy + 2, 0xFFAAAAAA);
+            x + 3, fy + 2, ModColors.TEXT_MUTED_ARGB);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -605,7 +666,7 @@ public class FishStatsScreen extends Screen {
             .filter(e -> e.getValue().size() >= 3)
             .collect(Collectors.toList());
         if (entries.isEmpty()) {
-            ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.empty.nodata"), x + w/2, y + h/2, 0xFFFFFF);
+            ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.empty.nodata"), x + w/2, y + h/2, ModColors.TEXT_WHITE);
             return;
         }
 
@@ -613,13 +674,13 @@ public class FishStatsScreen extends Screen {
         sizesLogBtnX = x + w - LOG_BTN_W - 2;
         sizesLogBtnY = y + 1;
         ctx.fill(sizesLogBtnX, sizesLogBtnY, sizesLogBtnX + LOG_BTN_W, sizesLogBtnY + LOG_BTN_H,
-            sizesLogScale ? 0xFF226622 : 0xFF333355);
-        ctx.fill(sizesLogBtnX, sizesLogBtnY, sizesLogBtnX + LOG_BTN_W, sizesLogBtnY + 1, 0xFF8888AA);
-        ctx.fill(sizesLogBtnX, sizesLogBtnY, sizesLogBtnX + 1, sizesLogBtnY + LOG_BTN_H, 0xFF8888AA);
+            sizesLogScale ? ModColors.BTN_ACTIVE : ModColors.BTN_NORMAL);
+        ctx.fill(sizesLogBtnX, sizesLogBtnY, sizesLogBtnX + LOG_BTN_W, sizesLogBtnY + 1, ModColors.TOGGLE_BORDER);
+        ctx.fill(sizesLogBtnX, sizesLogBtnY, sizesLogBtnX + 1, sizesLogBtnY + LOG_BTN_H, ModColors.TOGGLE_BORDER);
         ctx.drawCenteredTextWithShadow(textRenderer,
             sizesLogScale ? "LOG" : "LIN",
             sizesLogBtnX + LOG_BTN_W / 2, sizesLogBtnY + 2,
-            sizesLogScale ? 0xFF88FF88 : 0xFFAAAAFF);
+            sizesLogScale ? ModColors.TEXT_PRICE : ModColors.BTN_TEXT_NORMAL);
 
         // ── Calcul des bornes ─────────────────────────────────────────────────
         double rawMin = entries.stream().flatMapToDouble(e -> e.getValue().stream().mapToDouble(d -> d)).min().orElse(1);
@@ -641,7 +702,7 @@ public class FishStatsScreen extends Screen {
 
         int plotX = x + 20, plotY = y + 14, plotW = w - 40, plotH = h - 30;
         int bw    = plotW / entries.size();
-        ctx.fill(plotX, plotY, plotX + plotW, plotY + plotH, 0xFF1A1A2A);
+        ctx.fill(plotX, plotY, plotX + plotW, plotY + plotH, ModColors.PLOT_BG);
 
         for (int i = 0; i < entries.size(); i++) {
             var e    = entries.get(i);
@@ -652,7 +713,7 @@ public class FishStatsScreen extends Screen {
             double lo  = vals.get(0);
             double hi  = vals.get(vals.size()-1);
 
-            int col  = RARITY_COL.getOrDefault(e.getKey(), 0xFF888888);
+            int col  = RARITY_COL.getOrDefault(e.getKey(), ModColors.RARITY_UNKNOWN);
             int bx   = plotX + i * bw + bw/5;
             int bwb  = bw * 3 / 5;
 
@@ -667,7 +728,7 @@ public class FishStatsScreen extends Screen {
             ctx.fill(bx, yQ3, bx + bwb, yQ3 + 1, col);
             ctx.fill(bx, yQ1, bx + bwb, yQ1 + 1, col);
             // Médiane
-            ctx.fill(bx, yMed, bx + bwb, yMed + 2, 0xFFFFFFFF);
+            ctx.fill(bx, yMed, bx + bwb, yMed + 2, ModColors.CHART_MEDIAN);
             // Moustaches
             int mid = bx + bwb/2;
             ctx.fill(mid, yHi, mid + 1, yQ3, col);
@@ -685,8 +746,8 @@ public class FishStatsScreen extends Screen {
                 ? Math.pow(10, scaleMin + norm * scaleRange)
                 : rawMin + norm * scaleRange;
             int yt = plotY + plotH - (int)(plotH * norm);
-            ctx.drawTextWithShadow(textRenderer, String.format("%.0f", raw), x, yt - 4, 0xAAAAAA);
-            ctx.fill(plotX, yt, plotX + plotW, yt + 1, 0x33FFFFFF);
+            ctx.drawTextWithShadow(textRenderer, String.format("%.0f", raw), x, yt - 4, ModColors.TEXT_MUTED);
+            ctx.fill(plotX, yt, plotX + plotW, yt + 1, ModColors.CHART_GRID_DENSE);
         }
     }
 
@@ -704,19 +765,19 @@ public class FishStatsScreen extends Screen {
             int bh   = hourly[i] * plotH / maxH;
             int bx   = x + 10 + i * bw;
             int by   = y + topOff + (plotH - bh);
-            ctx.fill(bx, by, bx + bw - 1, y + topOff + plotH, 0xFF3388CC);
+            ctx.fill(bx, by, bx + bw - 1, y + topOff + plotH, ModColors.CHART_HOURLY_FISH);
             if (i % 4 == 0) {
                 ctx.drawCenteredTextWithShadow(textRenderer,
-                    String.valueOf(i), bx + bw/2, y + topOff + plotH + 2, 0xAAAAAA);
+                    String.valueOf(i), bx + bw/2, y + topOff + plotH + 2, ModColors.TEXT_MUTED);
             }
             if (hourly[i] > 0) {
                 String hShort = formatShort(hourly[i]);
+                drawFittedText(ctx, hShort, bx + bw/2, by - 9, bw - 1, ModColors.TEXT_WHITE);
                 int hTx = bx + bw/2 - textRenderer.getWidth(hShort)/2;
-                ctx.drawCenteredTextWithShadow(textRenderer, hShort, bx + bw/2, by - 9, 0xFFFFFF);
                 checkTooltip(hTx, by - 9, hShort, I18n.translate("fishlog.hourly.tooltip", hourly[i], i));
             }
         }
-        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.hourly.label"), x + w/2 - 10, y + h - 8, 0xAAAAAA);
+        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.hourly.label"), x + w/2 - 10, y + h - 8, ModColors.TEXT_MUTED);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -724,7 +785,7 @@ public class FishStatsScreen extends Screen {
     // ─────────────────────────────────────────────────────────────────────────
     private void renderCumul(DrawContext ctx, int x, int y, int w, int h) {
         if (cumTimes == null || cumTimes.length < 2) {
-            ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.empty.nodata"), x + w/2, y + h/2, 0xFFFFFF);
+            ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.empty.nodata"), x + w/2, y + h/2, ModColors.TEXT_WHITE);
             return;
         }
 
@@ -734,7 +795,7 @@ public class FishStatsScreen extends Screen {
         if (maxV <= 0) maxV = 1;
 
         int plotX = x + 30, plotY = y + 10, plotW = w - 40, plotH = h - 25;
-        ctx.fill(plotX, plotY, plotX + plotW, plotY + plotH, 0xFF1A1A2A);
+        ctx.fill(plotX, plotY, plotX + plotW, plotY + plotH, ModColors.PLOT_BG);
 
         // Aire sous la courbe
         for (int i = 0; i < cumTimes.length - 1; i++) {
@@ -745,28 +806,28 @@ public class FishStatsScreen extends Screen {
             // Remplissage
             for (int px = x1; px <= x2 && px < plotX + plotW; px++) {
                 int yTop = px == x1 ? y1 : y1 + (y2 - y1) * (px - x1) / Math.max(1, x2 - x1);
-                ctx.fill(px, yTop, px + 1, plotY + plotH, 0x4400AAFF);
+                ctx.fill(px, yTop, px + 1, plotY + plotH, ModColors.CHART_FISH_FILL);
             }
             // Ligne
             thickLine(plotX, plotY, plotW, plotH,
                 (float)(cumTimes[i]/maxT), (float)(cumValues[i]/maxV),
                 (float)(cumTimes[i+1]/maxT), (float)(cumValues[i+1]/maxV),
-                2f, 0xFF00AAFF);
+                2f, ModColors.CHART_FISH_LINE);
         }
 
         // Axes
         for (int t = 0; t <= 4; t++) {
             int yt = plotY + plotH - t * plotH / 4;
-            ctx.fill(plotX, yt, plotX + plotW, yt + 1, 0x22FFFFFF);
+            ctx.fill(plotX, yt, plotX + plotW, yt + 1, ModColors.CHART_GRID);
             double axisVal = maxV * t / 4;
             String axisShort = formatShort(axisVal) + "$";
-            ctx.drawTextWithShadow(textRenderer, axisShort, x, yt - 4, 0xAAAAAA);
+            ctx.drawTextWithShadow(textRenderer, axisShort, x, yt - 4, ModColors.TEXT_MUTED);
             checkTooltip(x, yt - 4, axisShort, String.format("%.0f$", axisVal));
         }
         int cumulCnt = cumTimes.length;
         ctx.drawCenteredTextWithShadow(textRenderer,
             I18n.translate(cumulCnt > 1 ? "fishlog.cumul.footer.plural" : "fishlog.cumul.footer", cumValues[cumValues.length-1], cumulCnt),
-            plotX + plotW/2, plotY + plotH + 6, 0xFFFFFF);
+            plotX + plotW/2, plotY + plotH + 6, ModColors.TEXT_WHITE);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -780,20 +841,20 @@ public class FishStatsScreen extends Screen {
         String[] hdrs = {I18n.translate("fishlog.col.date"), I18n.translate("fishlog.col.rarity"), I18n.translate("fishlog.col.fish"), I18n.translate("fishlog.col.size"), I18n.translate("fishlog.col.price")};
 
         // Fond barre de recherche
-        ctx.fill(x, y, x + w, y + SEARCH_H, 0xFF0D0D1A);
-        ctx.fill(x, y + SEARCH_H - 1, x + w, y + SEARCH_H, 0xFF334455);
+        ctx.fill(x, y, x + w, y + SEARCH_H, ModColors.UI_SEARCH_BG);
+        ctx.fill(x, y + SEARCH_H - 1, x + w, y + SEARCH_H, ModColors.UI_FOOTER_LINE);
 
         // En-tête colonnes (sous la barre de recherche)
         int footerH = 12;
         int hdrH    = 12;
         int hY = y + SEARCH_H;
-        ctx.fill(x, hY, x + w, hY + hdrH, 0xFF1A1A33);
+        ctx.fill(x, hY, x + w, hY + hdrH, ModColors.UI_HEADER_BG);
         int cx = x;
         for (int i = 0; i < hdrs.length; i++) {
-            ctx.drawTextWithShadow(textRenderer, hdrs[i], cx + 2, hY + 2, 0xFFCC88);
+            ctx.drawTextWithShadow(textRenderer, hdrs[i], cx + 2, hY + 2, ModColors.TEXT_HEADER_COL);
             cx += widths[i];
         }
-        ctx.fill(x, hY + hdrH - 1, x + w, hY + hdrH, 0xFF445566);
+        ctx.fill(x, hY + hdrH - 1, x + w, hY + hdrH, ModColors.UI_HEADER_LINE);
 
         // Zone scrollable
         int listY = hY + hdrH;
@@ -804,17 +865,17 @@ public class FishStatsScreen extends Screen {
         for (int i = 0; i < filteredRecords.size(); i++) {
             if (rowY + ROW_H < listY || rowY > listY + listH) { rowY += ROW_H; continue; }
             FishRecord r = filteredRecords.get(i);
-            ctx.fill(x, rowY, x + w, rowY + ROW_H, (i % 2 == 0) ? 0xFF161622 : 0xFF1E1E2E);
+            ctx.fill(x, rowY, x + w, rowY + ROW_H, (i % 2 == 0) ? ModColors.ROW_EVEN : ModColors.ROW_ODD_ALT);
 
-            int rCol = RARITY_COL.getOrDefault(r.rarity, 0xFFAAAAAA);
+            int rCol = RARITY_COL.getOrDefault(r.rarity, ModColors.TEXT_MUTED_ARGB);
             cx = x;
-            ctx.drawTextWithShadow(textRenderer, r.timestamp.format(DT_FMT),         cx + 2, rowY + 1, 0xCCCCCC);  cx += widths[0];
+            ctx.drawTextWithShadow(textRenderer, r.timestamp.format(DT_FMT),         cx + 2, rowY + 1, ModColors.TEXT_LIGHT);  cx += widths[0];
             ctx.drawTextWithShadow(textRenderer, r.rarity,                            cx + 2, rowY + 1, rCol);       cx += widths[1];
             ItemStack fishIcon = FishTextureCache.getItemStack(r.fish, r.rarity);
             if (fishIcon != null) renderScaledItem(ctx, fishIcon, cx + 1, rowY + 1, 8);
-            ctx.drawTextWithShadow(textRenderer, r.fish, cx + (fishIcon != null ? 10 : 2), rowY + 1, 0xFFFFFF);     cx += widths[2];
-            ctx.drawTextWithShadow(textRenderer, String.format("%.1fcm", r.sizeCm),  cx + 2, rowY + 1, 0xDDDDDD);  cx += widths[3];
-            ctx.drawTextWithShadow(textRenderer, String.format("%.0f$", r.price),    cx + 2, rowY + 1, 0xFF88FF88);
+            ctx.drawTextWithShadow(textRenderer, r.fish, cx + (fishIcon != null ? 10 : 2), rowY + 1, ModColors.TEXT_WHITE);     cx += widths[2];
+            ctx.drawTextWithShadow(textRenderer, String.format("%.1fcm", r.sizeCm),  cx + 2, rowY + 1, ModColors.TEXT_MEDIUM);  cx += widths[3];
+            ctx.drawTextWithShadow(textRenderer, String.format("%.0f$", r.price),    cx + 2, rowY + 1, ModColors.TEXT_PRICE);
             rowY += ROW_H;
         }
         ctx.disableScissor();
@@ -825,12 +886,12 @@ public class FishStatsScreen extends Screen {
 
         // Footer avec fond noir
         int fy = y + h - footerH;
-        ctx.fill(x, fy, x + w, y + h, 0xFF000000);
-        ctx.fill(x, fy, x + w, fy + 1, 0xFF334455);
+        ctx.fill(x, fy, x + w, y + h, ModColors.UI_FOOTER_BG);
+        ctx.fill(x, fy, x + w, fy + 1, ModColors.UI_FOOTER_LINE);
         String footerTxt = filteredRecords.size() == allRecords.size()
             ? I18n.translate(allRecords.size() > 1 ? "fishlog.footer.records.plural" : "fishlog.footer.records", allRecords.size())
             : I18n.translate("fishlog.footer.filtered", filteredRecords.size(), allRecords.size());
-        ctx.drawTextWithShadow(textRenderer, footerTxt, x + 3, fy + 2, 0xFFAAAAAA);
+        ctx.drawTextWithShadow(textRenderer, footerTxt, x + 3, fy + 2, ModColors.TEXT_MUTED_ARGB);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -843,7 +904,7 @@ public class FishStatsScreen extends Screen {
 
         // ── Bande cumulée ────────────────────────────────────────────────────
         int bandH = 14, bx = x + 2, bandW = w - 4;
-        ctx.fill(bx, y + 2, bx + bandW, y + 2 + bandH, 0xFF111122);
+        ctx.fill(bx, y + 2, bx + bandW, y + 2 + bandH, ModColors.CHART_BAND_BG);
         int cumX = bx;
         for (var e : baitTypeEntries) {
             int col  = baitColor(e.getKey());
@@ -870,17 +931,17 @@ public class FishStatsScreen extends Screen {
                 int fill  = barW * e.getValue() / maxCnt;
 
                 ctx.drawTextWithShadow(textRenderer, e.getKey(), barAreaX, ry + 1, col);
-                ctx.fill(barAreaX + labelW, ry, barAreaX + labelW + barW, ry + 9, 0xFF1A1A2A);
+                ctx.fill(barAreaX + labelW, ry, barAreaX + labelW + barW, ry + 9, ModColors.PLOT_BG);
                 ctx.fill(barAreaX + labelW, ry, barAreaX + labelW + fill, ry + 9, col & 0x99FFFFFF | 0x99000000);
                 ctx.fill(barAreaX + labelW, ry, barAreaX + labelW + fill, ry + 1, col);
                 ctx.drawTextWithShadow(textRenderer,
                     String.format("%d  (%.1f%%)", e.getValue(), pct),
-                    barAreaX + labelW + barW + 4, ry + 1, 0xCCCCCC);
+                    barAreaX + labelW + barW + 4, ry + 1, ModColors.TEXT_LIGHT);
                 java.time.LocalDateTime last = lastByBait.get(e.getKey());
                 if (last != null) {
                     ctx.drawTextWithShadow(textRenderer,
                         I18n.translate("fishlog.elapsed", formatElapsed(last)),
-                        barAreaX, ry + 11, 0x99888888);
+                        barAreaX, ry + 11, ModColors.TEXT_VERY_MUTED);
                 }
             }
             ry += rowH;
@@ -893,11 +954,11 @@ public class FishStatsScreen extends Screen {
 
         // ── Footer ───────────────────────────────────────────────────────────
         int fy = y + h - footerH;
-        ctx.fill(x, fy, x + w, y + h, 0xFF000000);
-        ctx.fill(x, fy, x + w, fy + 1, 0xFF334455);
+        ctx.fill(x, fy, x + w, y + h, ModColors.UI_FOOTER_BG);
+        ctx.fill(x, fy, x + w, fy + 1, ModColors.UI_FOOTER_LINE);
         ctx.drawTextWithShadow(textRenderer,
             I18n.translate(total > 1 ? "fishlog.bait.total.plural" : "fishlog.bait.total", total),
-            x + 2, fy + 2, 0xFFFFAA);
+            x + 2, fy + 2, ModColors.TEXT_BAIT_FOOTER);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -914,45 +975,57 @@ public class FishStatsScreen extends Screen {
 
         int maxCnt = baitTypeEntries.isEmpty() ? 1 : baitTypeEntries.get(0).getValue();
 
-        ctx.fill(x, y, x + w, y + hdrH, 0xFF1A1A33);
-        ctx.fill(x + half, y, x + half + 1, y + h, 0xFF334455);
-        ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.top.by_count"),       cx1 + cw1/2, y + 2, 0xFFFFFF);
-        ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.bait.top.by_recency"), cx2 + cw2/2, y + 2, 0xFFFFFF);
-        ctx.fill(x, y + hdrH - 1, x + w, y + hdrH, 0xFF445566);
+        ctx.fill(x, y, x + w, y + hdrH, ModColors.UI_HEADER_BG);
+        ctx.fill(x + half, y, x + half + 1, y + h, ModColors.UI_FOOTER_LINE);
+        ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.top.by_count"),       cx1 + cw1/2, y + 2, ModColors.TEXT_WHITE);
+        ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.bait.top.by_recency"), cx2 + cw2/2, y + 2, ModColors.TEXT_WHITE);
+        ctx.fill(x, y + hdrH - 1, x + w, y + hdrH, ModColors.UI_HEADER_LINE);
+
+        // ── Bouton reverse ────────────────────────────────────────────────────
+        baitTopRevBtnX = x + w - sbW - REV_BTN_W - 2;
+        baitTopRevBtnY = y + 1;
+        ctx.fill(baitTopRevBtnX, baitTopRevBtnY, baitTopRevBtnX + REV_BTN_W, baitTopRevBtnY + REV_BTN_H,
+            baitTopReversed ? ModColors.BTN_REV_ACTIVE : ModColors.BTN_REV_NORMAL);
+        ctx.fill(baitTopRevBtnX, baitTopRevBtnY, baitTopRevBtnX + REV_BTN_W, baitTopRevBtnY + 1, ModColors.TOGGLE_BORDER);
+        ctx.fill(baitTopRevBtnX, baitTopRevBtnY, baitTopRevBtnX + 1, baitTopRevBtnY + REV_BTN_H, ModColors.TOGGLE_BORDER);
+        ctx.drawCenteredTextWithShadow(textRenderer, baitTopReversed ? "▲" : "▼",
+            baitTopRevBtnX + REV_BTN_W / 2, baitTopRevBtnY + 1, baitTopReversed ? ModColors.TEXT_PRICE : ModColors.BTN_TEXT_NORMAL);
 
         int listY = y + hdrH;
         ctx.enableScissor(x, listY, x + w, listY + listH);
 
         for (int i = 0; i < baitTypeEntries.size(); i++) {
+            int idx = baitTopReversed ? baitTypeEntries.size() - 1 - i : i;
             int ri = i - baitTopScrollOffset;
             int by = listY + ri * TOP_ROW_H;
             if (by + TOP_ROW_H < listY || by > listY + listH) continue;
-            var e   = baitTypeEntries.get(i);
+            var e   = baitTypeEntries.get(idx);
             int col = baitColor(e.getKey());
-            ctx.fill(cx1, by, cx1 + cw1, by + TOP_ROW_H, (i % 2 == 0) ? 0xFF161622 : 0xFF1C1C2A);
+            ctx.fill(cx1, by, cx1 + cw1, by + TOP_ROW_H, (i % 2 == 0) ? ModColors.ROW_EVEN : ModColors.ROW_ODD);
             ctx.fill(cx1 + 1, by + 2, cx1 + 1 + dotS, by + 2 + dotS, col);
             int barX = cx1 + dotS + 4, valW = 24;
             int barW = cw1 - dotS - 4 - valW - 2;
             int fill = (int)(barW * e.getValue() / (double) maxCnt);
-            ctx.fill(barX, by + 2, barX + barW, by + 2 + dotS, 0xFF1A2A1A);
-            ctx.fill(barX, by + 2, barX + fill,  by + 2 + dotS, 0xFF3388CC);
-            ctx.drawTextWithShadow(textRenderer, e.getKey(), barX + 2, by + 2, 0xFFFFFF);
-            ctx.drawTextWithShadow(textRenderer, String.valueOf(e.getValue()), cx1 + cw1 - valW, by + 2, 0xDDDDDD);
+            ctx.fill(barX, by + 2, barX + barW, by + 2 + dotS, ModColors.BAR_BG);
+            ctx.fill(barX, by + 2, barX + fill,  by + 2 + dotS, ModColors.CHART_HOURLY_FISH);
+            ctx.drawTextWithShadow(textRenderer, e.getKey(), barX + 2, by + 2, ModColors.TEXT_WHITE);
+            ctx.drawTextWithShadow(textRenderer, String.valueOf(e.getValue()), cx1 + cw1 - valW, by + 2, ModColors.TEXT_MEDIUM);
         }
 
         for (int i = 0; i < baitLastEntries.size(); i++) {
+            int idx = baitTopReversed ? baitLastEntries.size() - 1 - i : i;
             int ri = i - baitTopScrollOffset;
             int by = listY + ri * TOP_ROW_H;
             if (by + TOP_ROW_H < listY || by > listY + listH) continue;
-            var e   = baitLastEntries.get(i);
+            var e   = baitLastEntries.get(idx);
             int col = baitColor(e.getKey());
-            ctx.fill(cx2, by, cx2 + cw2, by + TOP_ROW_H, (i % 2 == 0) ? 0xFF161622 : 0xFF1C1C2A);
+            ctx.fill(cx2, by, cx2 + cw2, by + TOP_ROW_H, (i % 2 == 0) ? ModColors.ROW_EVEN : ModColors.ROW_ODD);
             ctx.fill(cx2 + 1, by + 2, cx2 + 1 + dotS, by + 2 + dotS, col);
             int tx2  = cx2 + dotS + 4;
             int elaW = 56;
-            ctx.drawTextWithShadow(textRenderer, e.getKey(), tx2, by + 2, 0xFFFFFF);
+            ctx.drawTextWithShadow(textRenderer, e.getKey(), tx2, by + 2, ModColors.TEXT_WHITE);
             ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.elapsed", formatElapsed(e.getValue())),
-                cx2 + cw2 - elaW, by + 2, 0x99BBBBBB);
+                cx2 + cw2 - elaW, by + 2, ModColors.TEXT_RECENCY);
         }
 
         ctx.disableScissor();
@@ -962,11 +1035,11 @@ public class FishStatsScreen extends Screen {
         renderScrollbar(ctx, SB_BAIT_TOP_R, cx2 + cw2 + 1, listY, listH, baitTopScrollOffset, baitLastEntries.size(), baitTopVis);
 
         int fy = listY + listH;
-        ctx.fill(x, fy, x + w, fy + footerH, 0xFF000000);
-        ctx.fill(x, fy, x + w, fy + 1, 0xFF334455);
+        ctx.fill(x, fy, x + w, fy + footerH, ModColors.UI_FOOTER_BG);
+        ctx.fill(x, fy, x + w, fy + 1, ModColors.UI_FOOTER_LINE);
         ctx.drawTextWithShadow(textRenderer,
             I18n.translate(baitTypeEntries.size() > 1 ? "fishlog.footer.bait_top.plural" : "fishlog.footer.bait_top", baitTypeEntries.size()),
-            x + 3, fy + 2, 0xFFAAAAAA);
+            x + 3, fy + 2, ModColors.TEXT_MUTED_ARGB);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -982,15 +1055,15 @@ public class FishStatsScreen extends Screen {
             int bh  = baitHourly[i] * plotH / maxH;
             int bxi = x + 10 + i * bw;
             int byi = y + topOff + (plotH - bh);
-            ctx.fill(bxi, byi, bxi + bw - 1, y + topOff + plotH, 0xFF44AA55);
+            ctx.fill(bxi, byi, bxi + bw - 1, y + topOff + plotH, ModColors.CHART_HOURLY_BAIT);
             if (i % 4 == 0) {
-                ctx.drawCenteredTextWithShadow(textRenderer, String.valueOf(i), bxi + bw/2, y + topOff + plotH + 2, 0xAAAAAA);
+                ctx.drawCenteredTextWithShadow(textRenderer, String.valueOf(i), bxi + bw/2, y + topOff + plotH + 2, ModColors.TEXT_MUTED);
             }
             if (baitHourly[i] > 0) {
-                ctx.drawCenteredTextWithShadow(textRenderer, String.valueOf(baitHourly[i]), bxi + bw/2, byi - 9, 0xFFFFFF);
+                drawFittedText(ctx, String.valueOf(baitHourly[i]), bxi + bw/2, byi - 9, bw - 1, ModColors.TEXT_WHITE);
             }
         }
-        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.hourly.label"), x + w/2 - 10, y + h - 8, 0xAAAAAA);
+        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.hourly.label"), x + w/2 - 10, y + h - 8, ModColors.TEXT_MUTED);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -998,7 +1071,7 @@ public class FishStatsScreen extends Screen {
     // ─────────────────────────────────────────────────────────────────────────
     private void renderBaitCumul(DrawContext ctx, int x, int y, int w, int h) {
         if (baitCumTimes == null || baitCumTimes.length < 2) {
-            ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.empty.nodata"), x + w/2, y + h/2, 0xFFFFFF);
+            ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.empty.nodata"), x + w/2, y + h/2, ModColors.TEXT_WHITE);
             return;
         }
         double maxT = baitCumTimes[baitCumTimes.length - 1];
@@ -1007,7 +1080,7 @@ public class FishStatsScreen extends Screen {
         if (maxV <= 0) maxV = 1;
 
         int plotX = x + 30, plotY = y + 10, plotW = w - 40, plotH = h - 25;
-        ctx.fill(plotX, plotY, plotX + plotW, plotY + plotH, 0xFF1A1A2A);
+        ctx.fill(plotX, plotY, plotX + plotW, plotY + plotH, ModColors.PLOT_BG);
 
         for (int i = 0; i < baitCumTimes.length - 1; i++) {
             int x1 = plotX + (int)(plotW * baitCumTimes[i]   / maxT);
@@ -1016,22 +1089,22 @@ public class FishStatsScreen extends Screen {
             int y2 = plotY + plotH - (int)(plotH * baitCumValues[i+1] / maxV);
             for (int px = x1; px <= x2 && px < plotX + plotW; px++) {
                 int yTop = px == x1 ? y1 : y1 + (y2 - y1) * (px - x1) / Math.max(1, x2 - x1);
-                ctx.fill(px, yTop, px + 1, plotY + plotH, 0x4400CC44);
+                ctx.fill(px, yTop, px + 1, plotY + plotH, ModColors.CHART_BAIT_FILL);
             }
             thickLine(plotX, plotY, plotW, plotH,
                 (float)(baitCumTimes[i]  /maxT), (float)(baitCumValues[i]  /maxV),
                 (float)(baitCumTimes[i+1]/maxT), (float)(baitCumValues[i+1]/maxV),
-                2f, 0xFF44CC44);
+                2f, ModColors.CHART_BAIT_LINE);
         }
 
         for (int t = 0; t <= 4; t++) {
             int yt = plotY + plotH - t * plotH / 4;
-            ctx.fill(plotX, yt, plotX + plotW, yt + 1, 0x22FFFFFF);
-            ctx.drawTextWithShadow(textRenderer, String.format("%.0f", maxV * t / 4), x, yt - 4, 0xAAAAAA);
+            ctx.fill(plotX, yt, plotX + plotW, yt + 1, ModColors.CHART_GRID);
+            ctx.drawTextWithShadow(textRenderer, String.format("%.0f", maxV * t / 4), x, yt - 4, ModColors.TEXT_MUTED);
         }
         ctx.drawCenteredTextWithShadow(textRenderer,
             I18n.translate(maxV > 1 ? "fishlog.bait.cumul.footer.plural" : "fishlog.bait.cumul.footer", maxV),
-            plotX + plotW/2, plotY + plotH + 6, 0xFFFFFF);
+            plotX + plotW/2, plotY + plotH + 6, ModColors.TEXT_WHITE);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1044,18 +1117,18 @@ public class FishStatsScreen extends Screen {
         String[] hdrs = {I18n.translate("fishlog.col.date"), I18n.translate("fishlog.col.bait")};
 
         // Fond barre de recherche
-        ctx.fill(x, y, x + w, y + SEARCH_H, 0xFF0D0D1A);
-        ctx.fill(x, y + SEARCH_H - 1, x + w, y + SEARCH_H, 0xFF334455);
+        ctx.fill(x, y, x + w, y + SEARCH_H, ModColors.UI_SEARCH_BG);
+        ctx.fill(x, y + SEARCH_H - 1, x + w, y + SEARCH_H, ModColors.UI_FOOTER_LINE);
 
         int footerH = 12, hdrH = 12;
         int hY = y + SEARCH_H;
-        ctx.fill(x, hY, x + w, hY + hdrH, 0xFF1A1A33);
+        ctx.fill(x, hY, x + w, hY + hdrH, ModColors.UI_HEADER_BG);
         int cx = x;
         for (int i = 0; i < hdrs.length; i++) {
-            ctx.drawTextWithShadow(textRenderer, hdrs[i], cx + 2, hY + 2, 0xFFCC88);
+            ctx.drawTextWithShadow(textRenderer, hdrs[i], cx + 2, hY + 2, ModColors.TEXT_HEADER_COL);
             cx += widths[i];
         }
-        ctx.fill(x, hY + hdrH - 1, x + w, hY + hdrH, 0xFF445566);
+        ctx.fill(x, hY + hdrH - 1, x + w, hY + hdrH, ModColors.UI_HEADER_LINE);
 
         int listY = hY + hdrH;
         int listH = h - SEARCH_H - hdrH - footerH;
@@ -1065,10 +1138,10 @@ public class FishStatsScreen extends Screen {
         for (int i = 0; i < filteredBaitRecords.size(); i++) {
             if (rowY + ROW_H < listY || rowY > listY + listH) { rowY += ROW_H; continue; }
             BaitRecord r = filteredBaitRecords.get(i);
-            ctx.fill(x, rowY, x + w, rowY + ROW_H, (i % 2 == 0) ? 0xFF161622 : 0xFF1E1E2E);
+            ctx.fill(x, rowY, x + w, rowY + ROW_H, (i % 2 == 0) ? ModColors.ROW_EVEN : ModColors.ROW_ODD_ALT);
             int col = baitColor(r.bait);
             cx = x;
-            ctx.drawTextWithShadow(textRenderer, r.timestamp.format(DT_FMT), cx + 2, rowY + 1, 0xCCCCCC); cx += widths[0];
+            ctx.drawTextWithShadow(textRenderer, r.timestamp.format(DT_FMT), cx + 2, rowY + 1, ModColors.TEXT_LIGHT); cx += widths[0];
             ctx.drawTextWithShadow(textRenderer, r.bait,                     cx + 2, rowY + 1, col);
             rowY += ROW_H;
         }
@@ -1078,12 +1151,12 @@ public class FishStatsScreen extends Screen {
         renderScrollbar(ctx, SB_BAIT_REC, x + w - sbW, listY, listH, baitScrollOffset, filteredBaitRecords.size(), baitRecVis);
 
         int fy = y + h - footerH;
-        ctx.fill(x, fy, x + w, y + h, 0xFF000000);
-        ctx.fill(x, fy, x + w, fy + 1, 0xFF334455);
+        ctx.fill(x, fy, x + w, y + h, ModColors.UI_FOOTER_BG);
+        ctx.fill(x, fy, x + w, fy + 1, ModColors.UI_FOOTER_LINE);
         String footerTxt = filteredBaitRecords.size() == allBaitRecords.size()
             ? I18n.translate(allBaitRecords.size() > 1 ? "fishlog.footer.records.plural" : "fishlog.footer.records", allBaitRecords.size())
             : I18n.translate("fishlog.footer.filtered", filteredBaitRecords.size(), allBaitRecords.size());
-        ctx.drawTextWithShadow(textRenderer, footerTxt, x + 3, fy + 2, 0xFFAAAAAA);
+        ctx.drawTextWithShadow(textRenderer, footerTxt, x + 3, fy + 2, ModColors.TEXT_MUTED_ARGB);
     }
 
     private static int baitColor(String bait) {
@@ -1102,6 +1175,22 @@ public class FishStatsScreen extends Screen {
     // ═════════════════════════════════════════════════════════════════════════
     //  Primitives de rendu
     // ═════════════════════════════════════════════════════════════════════════
+
+    /** Dessine du texte centré en réduisant l'échelle si le texte est plus large que maxW. */
+    private void drawFittedText(DrawContext ctx, String text, int cx, int y, int maxW, int color) {
+        int textW = textRenderer.getWidth(text);
+        if (textW <= maxW) {
+            ctx.drawCenteredTextWithShadow(textRenderer, text, cx, y, color);
+        } else {
+            float scale = Math.max(0.5f, (float) maxW / textW);
+            var ms = ctx.getMatrices();
+            ms.push();
+            ms.scale(scale, scale, 1f);
+            ctx.drawCenteredTextWithShadow(textRenderer, text,
+                Math.round(cx / scale), Math.round(y / scale), color);
+            ms.pop();
+        }
+    }
 
     /** Dessine un segment épais entre deux points en coordonnées relatives [0,1] dans la zone plot. */
     private void thickLine(int plotX, int plotY, int plotW, int plotH,
@@ -1133,11 +1222,11 @@ public class FishStatsScreen extends Screen {
     private void renderScrollbar(DrawContext ctx, int id, int x, int y, int trackH, int offset, int total, int visible) {
         sbX[id] = x; sbY[id] = y; sbTrackH[id] = trackH; sbTotal[id] = total; sbVis[id] = visible;
         if (total <= visible) return;
-        ctx.fill(x, y, x + 3, y + trackH, 0xFF1A1A2A);
+        ctx.fill(x, y, x + 3, y + trackH, ModColors.PLOT_BG);
         int thumbH = Math.max(6, trackH * visible / total);
         int maxOff = total - visible;
         int thumbY = y + (maxOff > 0 ? (trackH - thumbH) * offset / maxOff : 0);
-        ctx.fill(x, thumbY, x + 3, thumbY + thumbH, sbDragId == id ? 0xFF88AADD : 0xFF5577AA);
+        ctx.fill(x, thumbY, x + 3, thumbY + thumbH, sbDragId == id ? ModColors.SB_THUMB_DRAG : ModColors.SB_THUMB);
     }
 
     private static String formatShort(double val) {
@@ -1229,6 +1318,32 @@ public class FishStatsScreen extends Screen {
             return true;
         }
 
+        // Boutons reverse du tab TOP
+        if (activeTab == Tab.TOP) {
+            if (!baitMode
+                    && mx >= topRevBtnX && mx < topRevBtnX + REV_BTN_W
+                    && my >= topRevBtnY && my < topRevBtnY + REV_BTN_H) {
+                topReversed = !topReversed;
+                topScrollOffset = 0;
+                return true;
+            }
+            if (!baitMode
+                    && mx >= valModeBtnX && mx < valModeBtnX + VAL_MODE_BTN_W
+                    && my >= valModeBtnY && my < valModeBtnY + VAL_MODE_BTN_H) {
+                valueMode = switch (valueMode) { case MAX -> ValueMode.MEAN; case MEAN -> ValueMode.MIN; case MIN -> ValueMode.MAX; };
+                topValue = computeTopValue();
+                topScrollOffset = 0;
+                return true;
+            }
+            if (baitMode
+                    && mx >= baitTopRevBtnX && mx < baitTopRevBtnX + REV_BTN_W
+                    && my >= baitTopRevBtnY && my < baitTopRevBtnY + REV_BTN_H) {
+                baitTopReversed = !baitTopReversed;
+                baitTopScrollOffset = 0;
+                return true;
+            }
+        }
+
         // Bouton LIN/LOG du tab SIZES (pêche uniquement)
         if (!baitMode && activeTab == Tab.SIZES
                 && mx >= sizesLogBtnX && mx < sizesLogBtnX + LOG_BTN_W
@@ -1250,6 +1365,7 @@ public class FishStatsScreen extends Screen {
                     scrollOffset = 0; topScrollOffset = 0;
                     baitScrollOffset = 0; baitTopScrollOffset = 0; baitTypesScrollOffset = 0;
                     if (searchField != null) { searchField.setText(""); updateFiltered(); }
+                    if (activeTab == Tab.RECORDS && searchField != null) setFocused(searchField);
                 }
             }
             return true;
