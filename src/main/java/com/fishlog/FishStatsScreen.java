@@ -133,6 +133,11 @@ public class FishStatsScreen extends Screen {
     private List<BaitRecord>    filteredBaitRecords = List.of();
     private static final int    SEARCH_H = 12;
 
+    // ── Recherche (onglet TOP) ────────────────────────────────────────────────
+    private TextFieldWidget                     topSearchField;
+    private List<Map.Entry<String,Integer>>     filteredTopCount = List.of();
+    private List<Map.Entry<String,Double>>      filteredTopValue  = List.of();
+
     // ── Tooltip hover ─────────────────────────────────────────────────────────
     private int    lastMx, lastMy;
     private String pendingTooltip = null;
@@ -292,6 +297,17 @@ public class FishStatsScreen extends Screen {
         addDrawableChild(searchField);
         updateFiltered();
         if (activeTab == Tab.RECORDS) setFocused(searchField);
+
+        topSearchField = new TextFieldWidget(textRenderer, cX + 2, cY + 2, cW - 7, 9, Text.empty());
+        topSearchField.setMaxLength(100);
+        topSearchField.setChangedListener(t -> {
+            topScrollOffset = 0;
+            updateTopFiltered();
+        });
+        topSearchField.setVisible(false);
+        addDrawableChild(topSearchField);
+        updateTopFiltered();
+        if (activeTab == Tab.TOP && !baitMode) setFocused(topSearchField);
     }
 
     private List<Map.Entry<String, Double>> computeTopValue() {
@@ -320,6 +336,23 @@ public class FishStatsScreen extends Screen {
                 .collect(Collectors.toList());
             filteredBaitRecords = allBaitRecords.stream()
                 .filter(r -> r.bait.toLowerCase().contains(q))
+                .collect(Collectors.toList());
+        }
+    }
+
+    private void updateTopFiltered() {
+        String q = topSearchField != null ? topSearchField.getText().trim().toLowerCase() : "";
+        if (q.isEmpty()) {
+            filteredTopCount = topCount;
+            filteredTopValue = topValue;
+        } else {
+            filteredTopCount = topCount.stream()
+                .filter(e -> e.getKey().toLowerCase().contains(q)
+                          || rarityForSearch(fishRarity.getOrDefault(e.getKey(), "")).contains(q))
+                .collect(Collectors.toList());
+            filteredTopValue = topValue.stream()
+                .filter(e -> e.getKey().toLowerCase().contains(q)
+                          || rarityForSearch(fishRarity.getOrDefault(e.getKey(), "")).contains(q))
                 .collect(Collectors.toList());
         }
     }
@@ -382,11 +415,16 @@ public class FishStatsScreen extends Screen {
             }
         }
 
-        // ── Visibilité de la barre de recherche ──────────────────────────────────
+        // ── Visibilité des barres de recherche ───────────────────────────────────
         boolean isRecordsTab = activeTab == Tab.RECORDS;
         if (searchField != null) {
             searchField.setVisible(isRecordsTab);
             searchField.setEditable(isRecordsTab);
+        }
+        boolean isTopFishTab = activeTab == Tab.TOP && !baitMode;
+        if (topSearchField != null) {
+            topSearchField.setVisible(isTopFishTab);
+            topSearchField.setEditable(isTopFishTab);
         }
 
         // ── Bandeau global : noir sur tous les onglets + marque à droite ────────
@@ -532,31 +570,34 @@ public class FishStatsScreen extends Screen {
     private void renderTop(DrawContext ctx, int x, int y, int w, int h) {
         int footerH = 11;
         int hdrH    = 11;
-        int listH   = h - hdrH - footerH;
-        int visible = listH / TOP_ROW_H;
+        int listH   = h - SEARCH_H - hdrH - footerH;
 
-        int sbW  = 4; // largeur scrollbar
+        int sbW  = 4;
         int half = w / 2;
-        // ── Colonnes ─────────────────────────────────────────────────────────
-        // Côté gauche : quantité
-        int cx1 = x + 1,      cw1 = half - 2;
-        // Côté droit  : valeur (scrollbar à droite)
+        int cx1 = x + 1,        cw1 = half - 2;
         int cx2 = x + half + 1, cw2 = w - half - 2 - sbW;
-        int dotS = 6;  // taille de la pastille
+        int dotS = 6;
+        int rarW = 52;
 
-        int maxCnt = topCount.isEmpty() ? 1 : topCount.get(0).getValue();
-        double maxVal = topValue.isEmpty() ? 1 : topValue.get(0).getValue();
+        int maxCnt = filteredTopCount.isEmpty() ? 1 : filteredTopCount.get(0).getValue();
+        double maxVal = filteredTopValue.isEmpty() ? 1.0 : filteredTopValue.get(0).getValue();
+
+        // ── Barre de recherche ────────────────────────────────────────────────
+        ctx.fill(x, y, x + w, y + SEARCH_H, ModColors.UI_SEARCH_BG);
+        ctx.fill(x, y + SEARCH_H - 1, x + w, y + SEARCH_H, ModColors.UI_FOOTER_LINE);
+
+        int hdrY = y + SEARCH_H;
 
         // ── En-têtes ─────────────────────────────────────────────────────────
-        ctx.fill(x, y, x + w, y + hdrH, ModColors.UI_HEADER_BG);
-        ctx.fill(x + half, y, x + half + 1, y + h, ModColors.UI_FOOTER_LINE);
-        ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.top.by_count"), cx1 + cw1/2, y + 2, ModColors.TEXT_WHITE);
-        ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.top.by_value"), cx2 + cw2/2, y + 2, ModColors.TEXT_WHITE);
-        ctx.fill(x, y + hdrH - 1, x + w, y + hdrH, ModColors.UI_HEADER_LINE);
+        ctx.fill(x, hdrY, x + w, hdrY + hdrH, ModColors.UI_HEADER_BG);
+        ctx.fill(x + half, hdrY, x + half + 1, y + h, ModColors.UI_FOOTER_LINE);
+        ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.top.by_count"), cx1 + cw1/2, hdrY + 2, ModColors.TEXT_WHITE);
+        ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.top.by_value"), cx2 + cw2/2, hdrY + 2, ModColors.TEXT_WHITE);
+        ctx.fill(x, hdrY + hdrH - 1, x + w, hdrY + hdrH, ModColors.UI_HEADER_LINE);
 
         // ── Bouton reverse ────────────────────────────────────────────────────
         topRevBtnX = x + w - sbW - REV_BTN_W - 2;
-        topRevBtnY = y + 1;
+        topRevBtnY = hdrY + 1;
         ctx.fill(topRevBtnX, topRevBtnY, topRevBtnX + REV_BTN_W, topRevBtnY + REV_BTN_H,
             topReversed ? ModColors.BTN_REV_ACTIVE : ModColors.BTN_REV_NORMAL);
         ctx.fill(topRevBtnX, topRevBtnY, topRevBtnX + REV_BTN_W, topRevBtnY + 1, ModColors.TOGGLE_BORDER);
@@ -566,7 +607,7 @@ public class FishStatsScreen extends Screen {
 
         // ── Bouton Max / Mean / Min ───────────────────────────────────────────
         valModeBtnX = topRevBtnX - VAL_MODE_BTN_W - 2;
-        valModeBtnY = y + 1;
+        valModeBtnY = hdrY + 1;
         ctx.fill(valModeBtnX, valModeBtnY, valModeBtnX + VAL_MODE_BTN_W, valModeBtnY + VAL_MODE_BTN_H,
             ModColors.BTN_NORMAL);
         ctx.fill(valModeBtnX, valModeBtnY, valModeBtnX + VAL_MODE_BTN_W, valModeBtnY + 1, ModColors.TOGGLE_BORDER);
@@ -576,19 +617,18 @@ public class FishStatsScreen extends Screen {
             valModeBtnX + VAL_MODE_BTN_W / 2, valModeBtnY + 1, ModColors.BTN_TEXT_NORMAL);
 
         // ── Listes scrollables ────────────────────────────────────────────────
-        int listY = y + hdrH;
+        int listY = hdrY + hdrH;
         ctx.enableScissor(x, listY, x + w, listY + listH);
 
-        for (int i = 0; i < topCount.size(); i++) {
-            int idx = topReversed ? topCount.size() - 1 - i : i;
+        for (int i = 0; i < filteredTopCount.size(); i++) {
+            int idx = topReversed ? filteredTopCount.size() - 1 - i : i;
             int ri  = i - topScrollOffset;
             int by  = listY + ri * TOP_ROW_H;
             if (by + TOP_ROW_H < listY || by > listY + listH) continue;
-            var e   = topCount.get(idx);
+            var e   = filteredTopCount.get(idx);
             int col = RARITY_COL.getOrDefault(fishRarity.getOrDefault(e.getKey(), ""), ModColors.RARITY_UNKNOWN);
             ctx.fill(cx1, by, cx1 + cw1, by + TOP_ROW_H, (i % 2 == 0) ? ModColors.ROW_EVEN : ModColors.ROW_ODD);
 
-            // Icône ou pastille rareté
             String rar1 = fishRarity.getOrDefault(e.getKey(), "");
             ItemStack icon1 = FishTextureCache.getItemStack(e.getKey(), rar1);
             if (icon1 != null) {
@@ -597,26 +637,29 @@ public class FishStatsScreen extends Screen {
                 ctx.fill(cx1 + 1, by + 2, cx1 + 1 + dotS, by + 2 + dotS, col);
             }
 
-            // Barre de fond + fill
             int barX  = cx1 + dotS + 4;
             int valW  = 24;
-            int barW  = cw1 - dotS - 4 - valW - 2;
+            int barW  = cw1 - dotS - 4 - valW - rarW - 2;
             int fill  = (int)(barW * e.getValue() / (double) maxCnt);
             ctx.fill(barX, by + 2, barX + barW, by + 2 + dotS, ModColors.BAR_BG);
             ctx.fill(barX, by + 2, barX + fill, by + 2 + dotS, 0x883388CC | 0xFF000000);
             ctx.drawTextWithShadow(textRenderer, e.getKey(), barX + 2, by + 2, ModColors.TEXT_WHITE);
+
+            int rarCol1 = RARITY_COL.getOrDefault(rar1, ModColors.TEXT_MUTED_ARGB);
+            ctx.drawTextWithShadow(textRenderer, rar1, cx1 + cw1 - valW - rarW, by + 2, rarCol1);
+
             String cntShort = formatShort(e.getValue());
             int cntTx = cx1 + cw1 - valW;
             ctx.drawTextWithShadow(textRenderer, cntShort, cntTx, by + 2, ModColors.TEXT_MEDIUM);
             checkTooltip(cntTx, by + 2, cntShort, I18n.translate("fishlog.top.catches", e.getValue()));
         }
 
-        for (int i = 0; i < topValue.size(); i++) {
-            int idx = topReversed ? topValue.size() - 1 - i : i;
+        for (int i = 0; i < filteredTopValue.size(); i++) {
+            int idx = topReversed ? filteredTopValue.size() - 1 - i : i;
             int ri  = i - topScrollOffset;
             int by  = listY + ri * TOP_ROW_H;
             if (by + TOP_ROW_H < listY || by > listY + listH) continue;
-            var e   = topValue.get(idx);
+            var e   = filteredTopValue.get(idx);
             int col = RARITY_COL.getOrDefault(fishRarity.getOrDefault(e.getKey(), ""), ModColors.RARITY_UNKNOWN);
             ctx.fill(cx2, by, cx2 + cw2, by + TOP_ROW_H, (i % 2 == 0) ? ModColors.ROW_EVEN : ModColors.ROW_ODD);
 
@@ -630,11 +673,15 @@ public class FishStatsScreen extends Screen {
 
             int barX = cx2 + dotS + 4;
             int valW = 30;
-            int barW = cw2 - dotS - 4 - valW - 2;
+            int barW = cw2 - dotS - 4 - valW - rarW - 2;
             int fill = (int)(barW * e.getValue() / maxVal);
             ctx.fill(barX, by + 2, barX + barW, by + 2 + dotS, ModColors.BAR_BG);
             ctx.fill(barX, by + 2, barX + fill, by + 2 + dotS, 0x8844CC88 | 0xFF000000);
             ctx.drawTextWithShadow(textRenderer, e.getKey(), barX + 2, by + 2, ModColors.TEXT_WHITE);
+
+            int rarCol2 = RARITY_COL.getOrDefault(rar2, ModColors.TEXT_MUTED_ARGB);
+            ctx.drawTextWithShadow(textRenderer, rar2, cx2 + cw2 - valW - rarW, by + 2, rarCol2);
+
             String priceShort = formatShort(e.getValue()) + "$";
             int priceTx = cx2 + cw2 - valW;
             ctx.drawTextWithShadow(textRenderer, priceShort, priceTx, by + 2, ModColors.TEXT_MEDIUM);
@@ -645,15 +692,16 @@ public class FishStatsScreen extends Screen {
 
         // ── Scrollbar (côté valeur uniquement) ───────────────────────────────
         int topVisible = listH / TOP_ROW_H;
-        renderScrollbar(ctx, SB_TOP_R, cx2 + cw2 + 1, listY, listH, topScrollOffset, topValue.size(), topVisible);
+        renderScrollbar(ctx, SB_TOP_R, cx2 + cw2 + 1, listY, listH, topScrollOffset, filteredTopValue.size(), topVisible);
 
         // ── Footer ────────────────────────────────────────────────────────────
         int fy = listY + listH;
         ctx.fill(x, fy, x + w, fy + footerH, ModColors.UI_FOOTER_BG);
         ctx.fill(x, fy, x + w, fy + 1, ModColors.UI_FOOTER_LINE);
-        ctx.drawTextWithShadow(textRenderer,
-            I18n.translate(topCount.size() > 1 ? "fishlog.footer.top.plural" : "fishlog.footer.top", topCount.size()),
-            x + 3, fy + 2, ModColors.TEXT_MUTED_ARGB);
+        String topFooter = filteredTopCount.size() == topCount.size()
+            ? I18n.translate(topCount.size() > 1 ? "fishlog.footer.top.plural" : "fishlog.footer.top", topCount.size())
+            : I18n.translate("fishlog.footer.filtered", filteredTopCount.size(), topCount.size());
+        ctx.drawTextWithShadow(textRenderer, topFooter, x + 3, fy + 2, ModColors.TEXT_MUTED_ARGB);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -1314,6 +1362,7 @@ public class FishStatsScreen extends Screen {
             scrollOffset = 0; topScrollOffset = 0;
             baitScrollOffset = 0; baitTopScrollOffset = 0; rarityScrollOffset = 0; baitTypesScrollOffset = 0;
             if (searchField != null) { searchField.setText(""); updateFiltered(); }
+            if (topSearchField != null) { topSearchField.setText(""); updateTopFiltered(); }
             if (baitMode && activeTab == Tab.SIZES) activeTab = Tab.RARITY;
             return true;
         }
@@ -1332,6 +1381,7 @@ public class FishStatsScreen extends Screen {
                     && my >= valModeBtnY && my < valModeBtnY + VAL_MODE_BTN_H) {
                 valueMode = switch (valueMode) { case MAX -> ValueMode.MEAN; case MEAN -> ValueMode.MIN; case MIN -> ValueMode.MAX; };
                 topValue = computeTopValue();
+                updateTopFiltered();
                 topScrollOffset = 0;
                 return true;
             }
@@ -1365,7 +1415,9 @@ public class FishStatsScreen extends Screen {
                     scrollOffset = 0; topScrollOffset = 0;
                     baitScrollOffset = 0; baitTopScrollOffset = 0; baitTypesScrollOffset = 0;
                     if (searchField != null) { searchField.setText(""); updateFiltered(); }
+                    if (topSearchField != null) { topSearchField.setText(""); updateTopFiltered(); }
                     if (activeTab == Tab.RECORDS && searchField != null) setFocused(searchField);
+                    if (activeTab == Tab.TOP && !baitMode && topSearchField != null) setFocused(topSearchField);
                 }
             }
             return true;
@@ -1427,6 +1479,10 @@ public class FishStatsScreen extends Screen {
         if (keyCode == org.lwjgl.glfw.GLFW.GLFW_KEY_ESCAPE) {
             if (searchField != null && searchField.isFocused() && !searchField.getText().isEmpty()) {
                 searchField.setText("");
+                return true;
+            }
+            if (topSearchField != null && topSearchField.isFocused() && !topSearchField.getText().isEmpty()) {
+                topSearchField.setText("");
                 return true;
             }
             this.close();

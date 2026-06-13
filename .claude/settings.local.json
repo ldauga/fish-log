@@ -3,7 +3,9 @@
     "allow": [
       "WebFetch(domain:minecraft-heads.com)",
       "WebSearch",
-      "WebFetch(domain:mcheads.ru)"
+      "WebFetch(domain:mcheads.ru)",
+      "WebFetch(domain:serveur-minecraft.com)",
+      "WebFetch(domain:serveur-prive.net)"
     ]
   }
 }
