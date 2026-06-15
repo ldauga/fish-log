@@ -5,7 +5,9 @@
       "WebSearch",
       "WebFetch(domain:mcheads.ru)",
       "WebFetch(domain:serveur-minecraft.com)",
-      "WebFetch(domain:serveur-prive.net)"
+      "WebFetch(domain:serveur-prive.net)",
+      "Read(//c/Users/user/curseforge/minecraft/Instances/**)",
+      "Read(//c/Users/user/AppData/Local/curseforge/minecraft/**)"
     ]
   }
 }

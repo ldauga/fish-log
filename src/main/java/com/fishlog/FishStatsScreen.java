@@ -72,6 +72,8 @@ public class FishStatsScreen extends Screen {
     private Map<String, Double>            fishPriceSum, fishPriceMax, fishPriceMin;
     private Map<String, Integer>           fishCount;
     private int[]    hourly   = new int[24];
+    private java.time.LocalDate[] dailyDates;
+    private int[]                 dailyCounts;
     private double[] cumTimes;   // temps en minutes depuis le 1er
     private double[] cumValues;  // cumul des prix
     private Map<String, List<Double>>              sizesByRarity;
@@ -211,6 +213,12 @@ public class FishStatsScreen extends Screen {
         // Hourly
         Arrays.fill(hourly, 0);
         for (FishRecord r : records) hourly[r.timestamp.getHour()]++;
+
+        // Daily
+        TreeMap<java.time.LocalDate, Integer> dailyMap = new TreeMap<>();
+        for (FishRecord r : records) dailyMap.merge(r.timestamp.toLocalDate(), 1, Integer::sum);
+        dailyDates  = dailyMap.keySet().toArray(new java.time.LocalDate[0]);
+        dailyCounts = dailyMap.values().stream().mapToInt(Integer::intValue).toArray();
 
         // Cumul
         if (!records.isEmpty()) {
@@ -800,32 +808,105 @@ public class FishStatsScreen extends Screen {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    //  HOURLY – barres par heure
+    //  HOURLY – barres par heure + courbe poissons/jour
     // ─────────────────────────────────────────────────────────────────────────
     private void renderHourly(DrawContext ctx, int x, int y, int w, int h) {
+        int usableH     = h - 12;                 // réserve le pied de page global
+        int hourlyAreaH = usableH * 48 / 100;     // ~48 % pour les barres horaires
+        int sepY        = y + hourlyAreaH;
+
+        // ── Titre section horaire ────────────────────────────────────────────
+        ctx.drawCenteredTextWithShadow(textRenderer,
+            I18n.translate("fishlog.hourly.label"), x + w / 2, y + 1, ModColors.TEXT_MUTED);
+
+        // ── Barres horaires ──────────────────────────────────────────────────
         int maxH = Arrays.stream(hourly).max().orElse(1);
         if (maxH == 0) maxH = 1;
-
-        int plotH = h - 32, plotW = w - 20;
-        int bw    = plotW / 24;
-        int topOff = 12;
+        int plotH  = hourlyAreaH - 20;
+        int plotW  = w - 20;
+        int bw     = plotW / 24;
+        int topOff = 10;
         for (int i = 0; i < 24; i++) {
-            int bh   = hourly[i] * plotH / maxH;
-            int bx   = x + 10 + i * bw;
-            int by   = y + topOff + (plotH - bh);
+            int bh = hourly[i] * plotH / maxH;
+            int bx = x + 10 + i * bw;
+            int by = y + topOff + (plotH - bh);
             ctx.fill(bx, by, bx + bw - 1, y + topOff + plotH, ModColors.CHART_HOURLY_FISH);
             if (i % 4 == 0) {
                 ctx.drawCenteredTextWithShadow(textRenderer,
-                    String.valueOf(i), bx + bw/2, y + topOff + plotH + 2, ModColors.TEXT_MUTED);
+                    String.valueOf(i), bx + bw / 2, y + topOff + plotH + 2, ModColors.TEXT_MUTED);
             }
             if (hourly[i] > 0) {
                 String hShort = formatShort(hourly[i]);
-                drawFittedText(ctx, hShort, bx + bw/2, by - 9, bw - 1, ModColors.TEXT_WHITE);
-                int hTx = bx + bw/2 - textRenderer.getWidth(hShort)/2;
+                drawFittedText(ctx, hShort, bx + bw / 2, by - 9, bw - 1, ModColors.TEXT_WHITE);
+                int hTx = bx + bw / 2 - textRenderer.getWidth(hShort) / 2;
                 checkTooltip(hTx, by - 9, hShort, I18n.translate("fishlog.hourly.tooltip", hourly[i], i));
             }
         }
-        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.hourly.label"), x + w/2 - 10, y + h - 8, ModColors.TEXT_MUTED);
+
+        // ── Séparateur ───────────────────────────────────────────────────────
+        ctx.fill(x, sepY, x + w, sepY + 1, ModColors.UI_DIVIDER);
+
+        // ── Graphe poissons / jour ────────────────────────────────────────────
+        int dailyY = sepY + 2;
+        int dailyH = usableH - hourlyAreaH - 3;
+
+        ctx.drawCenteredTextWithShadow(textRenderer,
+            I18n.translate("fishlog.daily.title"), x + w / 2, dailyY + 1, ModColors.TEXT_MUTED);
+
+        if (dailyCounts == null || dailyCounts.length < 2) {
+            ctx.drawCenteredTextWithShadow(textRenderer,
+                I18n.translate("fishlog.empty.nodata"), x + w / 2, dailyY + dailyH / 2, ModColors.TEXT_WHITE);
+            return;
+        }
+
+        int n    = dailyCounts.length;
+        int maxV = Arrays.stream(dailyCounts).max().orElse(1);
+        if (maxV == 0) maxV = 1;
+
+        int plotX  = x + 28;
+        int plotY2 = dailyY + 12;
+        int plotW2 = w - 36;
+        int plotH2 = dailyH - 24;
+        if (plotH2 < 8) return;
+        ctx.fill(plotX, plotY2, plotX + plotW2, plotY2 + plotH2, ModColors.PLOT_BG);
+
+        // Aire + ligne
+        for (int i = 0; i < n - 1; i++) {
+            float t1 = (float) i / (n - 1);
+            float t2 = (float) (i + 1) / (n - 1);
+            float v1 = (float) dailyCounts[i] / maxV;
+            float v2 = (float) dailyCounts[i + 1] / maxV;
+            int x1 = plotX + (int)(plotW2 * t1);
+            int x2 = plotX + (int)(plotW2 * t2);
+            int y1 = plotY2 + plotH2 - (int)(plotH2 * v1);
+            int y2 = plotY2 + plotH2 - (int)(plotH2 * v2);
+            for (int px = x1; px <= x2 && px < plotX + plotW2; px++) {
+                int yTop = px == x1 ? y1 : y1 + (y2 - y1) * (px - x1) / Math.max(1, x2 - x1);
+                ctx.fill(px, yTop, px + 1, plotY2 + plotH2, ModColors.CHART_FISH_FILL);
+            }
+            thickLine(plotX, plotY2, plotW2, plotH2, t1, v1, t2, v2, 2f, ModColors.CHART_FISH_LINE);
+        }
+
+        // Grille Y + étiquettes
+        for (int t = 0; t <= 4; t++) {
+            int yt = plotY2 + plotH2 - t * plotH2 / 4;
+            ctx.fill(plotX, yt, plotX + plotW2, yt + 1, ModColors.CHART_GRID);
+            ctx.drawTextWithShadow(textRenderer,
+                String.valueOf((int) Math.round(maxV * t / 4.0)), x, yt - 4, ModColors.TEXT_MUTED);
+        }
+
+        // Étiquettes X (dates)
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM");
+        int step = Math.max(1, n / 7);
+        for (int i = 0; i < n; i += step) {
+            int px = plotX + (int)(plotW2 * (float) i / Math.max(1, n - 1));
+            ctx.drawCenteredTextWithShadow(textRenderer,
+                dailyDates[i].format(fmt), px, plotY2 + plotH2 + 2, ModColors.TEXT_MUTED);
+        }
+        if (n > 1 && (n - 1) % step != 0) {
+            ctx.drawCenteredTextWithShadow(textRenderer,
+                dailyDates[n - 1].format(fmt), plotX + plotW2, plotY2 + plotH2 + 2, ModColors.TEXT_MUTED);
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
