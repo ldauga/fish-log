@@ -67,5 +67,11 @@
   "fishlog.time.s":  "%ds",
   "fishlog.time.ms": "%dm %ds",
   "fishlog.time.hm": "%dh %dm",
-  "fishlog.time.dh": "%dd %dh"
+  "fishlog.time.dh": "%dd %dh",
+
+  "fishlog.sizes.tooltip.max":    "Max size: %s: %.1f cm",
+  "fishlog.sizes.tooltip.min":    "Min size: %s: %.1f cm",
+  "fishlog.sizes.tooltip.q1":     "1st quartile: %.1f cm",
+  "fishlog.sizes.tooltip.median": "Median: %.1f cm",
+  "fishlog.sizes.tooltip.q3":     "3rd quartile: %.1f cm"
 }

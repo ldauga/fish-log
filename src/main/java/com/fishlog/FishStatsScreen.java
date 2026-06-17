@@ -872,7 +872,7 @@ public class FishStatsScreen extends Screen {
                 drawFittedText(ctx, hShort, bx + bw / 2, by - 9, bw - 1, ModColors.TEXT_WHITE);
                 int barBottom = y + topOff + plotH;
                 if (lastMx >= bx && lastMx < bx + bw && lastMy >= by && lastMy <= barBottom) {
-                    pendingTooltip = I18n.translate("fishlog.hourly.tooltip", hourly[i], i);
+                    pendingTooltip = List.of(Text.literal(I18n.translate("fishlog.hourly.tooltip", hourly[i], i)));
                 }
             }
         }
@@ -934,7 +934,7 @@ public class FishStatsScreen extends Screen {
             int hovI = Math.round((float)(lastMx - plotX) / plotW2 * (n - 1));
             hovI = Math.max(0, Math.min(n - 1, hovI));
             DateTimeFormatter fmtFull = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-            pendingTooltip = I18n.translate("fishlog.daily.tooltip", dailyCounts[hovI], dailyDates[hovI].format(fmtFull));
+            pendingTooltip = List.of(Text.literal(I18n.translate("fishlog.daily.tooltip", dailyCounts[hovI], dailyDates[hovI].format(fmtFull))));
         }
     }
 
@@ -1025,7 +1025,7 @@ public class FishStatsScreen extends Screen {
                 if (cumTimes[mid] <= tCursor) lo = mid; else hi = mid;
             }
             int hovI = Math.abs(cumTimes[lo] - tCursor) <= Math.abs(cumTimes[hi] - tCursor) ? lo : hi;
-            pendingTooltip = I18n.translate("fishlog.cumul.tooltip", cumDates[hovI].format(CUMUL_FMT), Math.round(cumValues[hovI]));
+            pendingTooltip = List.of(Text.literal(I18n.translate("fishlog.cumul.tooltip", cumDates[hovI].format(CUMUL_FMT), Math.round(cumValues[hovI]))));
         }
     }
 
