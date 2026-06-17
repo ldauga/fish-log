@@ -66,6 +66,9 @@ public class FishLogMod implements ClientModInitializer {
                 BaitDataStore.INSTANCE.reload();
             }
 
+            Path favPath = client.runDirectory.toPath().resolve("favorites.txt");
+            FavoritesStore.INSTANCE.init(favPath);
+
             // Scanner les logs à chaque connexion pour importer les entrées manquantes
             if (client.player == null) return;
             Path logsDir = client.runDirectory.toPath().resolve("logs");

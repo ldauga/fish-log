@@ -102,6 +102,16 @@ public class FishStatsScreen extends Screen {
     private Map<String, List<FishRecord>>          fishRecordsByRarity;
     private List<FishRecord>                       allRecords;
     private Map<String, java.time.LocalDateTime>   lastByRarity;
+    private Map<String, java.time.LocalDateTime>   lastByFish;
+    private int rarityListH = 0;
+
+    private final List<StarHit> starHits = new ArrayList<>();
+    private static class StarHit {
+        final String fish; final int x, y, w, h;
+        StarHit(String fish, int x, int y, int w, int h) {
+            this.fish = fish; this.x = x; this.y = y; this.w = w; this.h = h;
+        }
+    }
 
     // ── Données appâts ────────────────────────────────────────────────────────
     private List<Map.Entry<String, Integer>>                    baitTypeEntries;
@@ -206,6 +216,11 @@ public class FishStatsScreen extends Screen {
         lastByRarity = new LinkedHashMap<>();
         for (FishRecord r : records)
             lastByRarity.merge(r.rarity, r.timestamp, (a, b) -> a.isAfter(b) ? a : b);
+
+        // Dernière prise par poisson
+        lastByFish = new LinkedHashMap<>();
+        for (FishRecord r : records)
+            lastByFish.merge(r.fish, r.timestamp, (a, b) -> a.isAfter(b) ? a : b);
 
         // Top par nombre et par valeur (max / mean / min)
         Map<String, Integer> cnt = new LinkedHashMap<>();
@@ -568,10 +583,12 @@ public class FishStatsScreen extends Screen {
         int footerH = 12;
         int listY   = hdrY + hdrH;
         int listH   = h - (listY - y) - footerH;
+        rarityListH = listH;
         int rowH    = 21;
         ctx.enableScissor(x, listY, x + w, listY + listH);
 
-        int ry = listY - rarityScrollOffset * rowH;
+        int ry = listY - rarityScrollOffset;
+        Set<String> rarFavSnap = FavoritesStore.INSTANCE.snapshot();
         for (Map.Entry<String,Integer> e : rarityEntries) {
             if (ry + rowH >= listY && ry <= listY + listH) {
                 int col  = RARITY_COL.getOrDefault(e.getKey(), ModColors.RARITY_UNKNOWN);
@@ -595,6 +612,20 @@ public class FishStatsScreen extends Screen {
                 ctx.drawTextWithShadow(textRenderer, secondLine, barAreaX, ry + 11, ModColors.TEXT_VERY_MUTED);
             }
             ry += rowH;
+            // Sous-entrées : poissons favoris de cette rareté
+            for (String fish : rarFavSnap) {
+                if (!e.getKey().equals(fishRarity.getOrDefault(fish, ""))) continue;
+                if (ry + 9 >= listY && ry <= listY + listH) {
+                    int fc = fishCount.getOrDefault(fish, 0);
+                    float fpct = records.size() > 0 ? 100f * fc / records.size() : 0f;
+                    java.time.LocalDateTime lastF = lastByFish != null ? lastByFish.get(fish) : null;
+                    String fcStr = I18n.translate(fc > 1 ? "fishlog.catch.plural" : "fishlog.catch", fc);
+                    String elap = lastF != null ? "  " + I18n.translate("fishlog.elapsed", formatElapsed(lastF)) : "";
+                    String line = "★ " + fish + "   " + fcStr + String.format("   %.1f%%", fpct) + elap;
+                    ctx.drawTextWithShadow(textRenderer, line, barAreaX + 8, ry + 1, 0xFFFFDD00);
+                }
+                ry += 10;
+            }
         }
         ctx.disableScissor();
 
@@ -621,6 +652,7 @@ public class FishStatsScreen extends Screen {
     //  TOP – barres horizontales (tous les poissons, défilable, pastille rareté)
     // ─────────────────────────────────────────────────────────────────────────
     private void renderTop(DrawContext ctx, int x, int y, int w, int h) {
+        starHits.clear();
         int footerH = 11;
         int hdrH    = 11;
         int listH   = h - SEARCH_H - hdrH - footerH;
@@ -691,7 +723,7 @@ public class FishStatsScreen extends Screen {
             }
 
             int barX  = cx1 + dotS + 4;
-            int valW  = 24;
+            int valW  = 34;
             int barW  = cw1 - dotS - 4 - valW - rarW - 2;
             int fill  = (int)(barW * e.getValue() / (double) maxCnt);
             ctx.fill(barX, by + 2, barX + barW, by + 2 + dotS, ModColors.BAR_BG);
@@ -709,6 +741,11 @@ public class FishStatsScreen extends Screen {
             int cntTx = cx1 + cw1 - valW;
             ctx.drawTextWithShadow(textRenderer, cntShort, cntTx, by + 2, ModColors.TEXT_MEDIUM);
             checkTooltip(cntTx, by + 2, cntShort, I18n.translate("fishlog.top.catches", e.getValue()));
+
+            boolean fav1 = FavoritesStore.INSTANCE.isFavorite(e.getKey());
+            int sx1 = cx1 + cw1 - 9, sy1 = by + 2;
+            ctx.drawTextWithShadow(textRenderer, fav1 ? "★" : "☆", sx1, sy1, fav1 ? 0xFFFFDD00 : ModColors.TEXT_VERY_MUTED);
+            starHits.add(new StarHit(e.getKey(), sx1 - 1, sy1, 10, 9));
         }
 
         for (int i = 0; i < filteredTopValue.size(); i++) {
@@ -729,7 +766,7 @@ public class FishStatsScreen extends Screen {
             }
 
             int barX = cx2 + dotS + 4;
-            int valW = 30;
+            int valW = 40;
             int barW = cw2 - dotS - 4 - valW - rarW - 2;
             int fill = (int)(barW * e.getValue() / maxVal);
             ctx.fill(barX, by + 2, barX + barW, by + 2 + dotS, ModColors.BAR_BG);
@@ -747,6 +784,11 @@ public class FishStatsScreen extends Screen {
             int priceTx = cx2 + cw2 - valW;
             ctx.drawTextWithShadow(textRenderer, priceShort, priceTx, by + 2, ModColors.TEXT_MEDIUM);
             checkTooltip(priceTx, by + 2, priceShort, String.format("%.0f$", e.getValue()));
+
+            boolean fav2 = FavoritesStore.INSTANCE.isFavorite(e.getKey());
+            int sx2 = cx2 + cw2 - 9, sy2 = by + 2;
+            ctx.drawTextWithShadow(textRenderer, fav2 ? "★" : "☆", sx2, sy2, fav2 ? 0xFFFFDD00 : ModColors.TEXT_VERY_MUTED);
+            starHits.add(new StarHit(e.getKey(), sx2 - 1, sy2, 10, 9));
         }
 
         ctx.disableScissor();
@@ -1688,6 +1730,16 @@ public class FishStatsScreen extends Screen {
             return true;
         }
 
+        // Boutons favoris (onglet TOP)
+        if (!baitMode && activeTab == Tab.TOP) {
+            for (StarHit h : starHits) {
+                if (mx >= h.x && mx < h.x + h.w && my >= h.y && my < h.y + h.h) {
+                    FavoritesStore.INSTANCE.toggle(h.fish);
+                    return true;
+                }
+            }
+        }
+
         Tab[] tabs = Tab.values();
         int areaX  = 10;
         int tabsW  = (width - 20) - BAIT_TOGGLE_W - 2;
@@ -1751,8 +1803,11 @@ public class FishStatsScreen extends Screen {
                 case RECORDS -> setScrollOffset(SB_RECORDS, scrollOffset    - delta);
                 case TOP     -> setScrollOffset(SB_TOP_R,   topScrollOffset - delta);
                 case RARITY  -> {
-                    int maxScroll = Math.max(0, rarityEntries.size() - 4);
-                    rarityScrollOffset = Math.max(0, Math.min(maxScroll, rarityScrollOffset - delta));
+                    Set<String> favs = FavoritesStore.INSTANCE.snapshot();
+                    int subEntries = (int) favs.stream().filter(f -> fishRarity.containsKey(f)).count();
+                    int totalH = rarityEntries.size() * 21 + subEntries * 10;
+                    int maxScroll = Math.max(0, totalH - rarityListH);
+                    rarityScrollOffset = Math.max(0, Math.min(maxScroll, rarityScrollOffset - delta * 21));
                 }
                 default -> { }
             }

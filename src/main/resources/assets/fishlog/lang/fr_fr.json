@@ -77,5 +77,8 @@
   "fishlog.sizes.tooltip.min":    "Taille min : %s : %.1f cm",
   "fishlog.sizes.tooltip.q1":     "1er quartile : %.1f cm",
   "fishlog.sizes.tooltip.median": "Médiane : %.1f cm",
-  "fishlog.sizes.tooltip.q3":     "3ème quartile : %.1f cm"
+  "fishlog.sizes.tooltip.q3":     "3ème quartile : %.1f cm",
+
+  "fishlog.favorite.add":    "Ajouter aux favoris",
+  "fishlog.favorite.remove": "Retirer des favoris"
 }
