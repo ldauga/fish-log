@@ -179,7 +179,10 @@ public class FishStatsScreen extends Screen {
         Map<String, Integer> rar = new LinkedHashMap<>();
         for (FishRecord r : records) rar.merge(r.rarity, 1, Integer::sum);
         rarityEntries = new ArrayList<>(rar.entrySet());
-        rarityEntries.sort((a, b) -> b.getValue() - a.getValue());
+        rarityEntries.sort(Comparator.comparingInt(e -> {
+            int idx = RARITY_ORDER.indexOf(e.getKey());
+            return idx < 0 ? RARITY_ORDER.size() : idx;
+        }));
 
         // Dernière prise par rareté
         lastByRarity = new LinkedHashMap<>();
