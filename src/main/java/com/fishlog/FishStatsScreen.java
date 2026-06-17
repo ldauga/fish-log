@@ -41,12 +41,28 @@ public class FishStatsScreen extends Screen {
         RARITY_COL.put("",           ModColors.RARITY_COSMIQUE);
         RARITY_COL.put("PERDU",      ModColors.RARITY_PERDU);
         RARITY_COL.put("ARTEFACT",   ModColors.RARITY_ARTEFACT);
+        RARITY_COL.put("",     ModColors.RARITY_EVENT);
+        RARITY_COL.put("",     ModColors.RARITY_EVENT);
+        RARITY_COL.put("",     ModColors.RARITY_EVENT);
+        RARITY_COL.put("",     ModColors.RARITY_EVENT);
+        RARITY_COL.put("",     ModColors.RARITY_EVENT);
     }
 
     // ── Ordre d'affichage des raretés dans le box plot ───────────────────────
     private static final List<String> RARITY_ORDER = List.of(
-        "PERDU", "COMMUN", "RARE", "ÉPIQUE", "LÉGENDAIRE", "MYTHIQUE", "ABYSSAL", "ÉMISSAIRE", "ARTEFACT"
+        "PERDU", "COMMUN", "RARE", "ÉPIQUE", "LÉGENDAIRE", "MYTHIQUE", "ABYSSAL", "ÉMISSAIRE", "ARTEFACT",
+        "", "", "", "", ""
     );
+
+    // ── Raretés événement : symbol → nom recherchable ────────────────────────
+    private static final Map<String, String> EVENT_NAMES = new java.util.HashMap<>();
+    static {
+        EVENT_NAMES.put("", "badschool");
+        EVENT_NAMES.put("", "badlloween");
+        EVENT_NAMES.put("", "freliz");
+        EVENT_NAMES.put("", "paques");
+        EVENT_NAMES.put("", "love in the badlands");
+    }
 
     // ── Couleurs ARGB par appât ───────────────────────────────────────────────
     private static final Map<String, Integer> BAIT_COL = new LinkedHashMap<>();
@@ -55,7 +71,7 @@ public class FishStatsScreen extends Screen {
         BAIT_COL.put("Ver Luisant",       ModColors.BAIT_BLEU);
         BAIT_COL.put("Slime Royal",       ModColors.BAIT_BLEU);
         BAIT_COL.put("Aimant",            ModColors.BAIT_GRIS);
-        BAIT_COL.put("Appat Runic",       ModColors.BAIT_VIOLET);
+        BAIT_COL.put("Appat Runique",       ModColors.BAIT_VIOLET);
         BAIT_COL.put("Leurre Mecanique",  ModColors.BAIT_VIOLET);
         BAIT_COL.put("Companion cube",    ModColors.BAIT_ORANGE);
         BAIT_COL.put("Ruche de Nimeria",  ModColors.BAIT_ORANGE);
@@ -380,11 +396,18 @@ public class FishStatsScreen extends Screen {
     }
 
     // Retourne un nom de rareté lisible pour la recherche.
-    // "" (cosmique) → "cosmique" ; char non-imprimable (abyssale) → "abyssale" ; sinon casse basse.
+    // "" (cosmique) → "cosmique" ; EVENT → "event <nom>" ; non-imprimable → "abyssale" ; sinon casse basse.
     private static String rarityForSearch(String rarity) {
         if (rarity == null || rarity.isEmpty()) return "cosmique";
+        String eventName = EVENT_NAMES.get(rarity);
+        if (eventName != null) return "event " + eventName;
         if (rarity.chars().noneMatch(Character::isLetterOrDigit)) return "abyssale";
         return rarity.toLowerCase();
+    }
+
+    private static String rarityDisplay(String rarity) {
+        if (EVENT_NAMES.containsKey(rarity)) return "EVENT";
+        return rarity;
     }
 
     // ═════════════════════════════════════════════════════════════════════════
@@ -548,7 +571,8 @@ public class FishStatsScreen extends Screen {
                 float pct = 100f * e.getValue() / total;
                 int fill  = barW * e.getValue() / maxCnt;
 
-                ctx.drawTextWithShadow(textRenderer, e.getKey(), barAreaX, ry + 1, col);
+                int nameCol = EVENT_NAMES.containsKey(e.getKey()) ? 0xFFFFFF : col;
+                ctx.drawTextWithShadow(textRenderer, e.getKey(), barAreaX, ry + 1, nameCol);
                 ctx.fill(barAreaX + labelW, ry, barAreaX + labelW + barW, ry + 9, ModColors.PLOT_BG);
                 ctx.fill(barAreaX + labelW, ry, barAreaX + labelW + fill, ry + 9, col & 0x99FFFFFF | 0x99000000);
                 ctx.fill(barAreaX + labelW, ry, barAreaX + labelW + fill, ry + 1, col);
@@ -668,7 +692,11 @@ public class FishStatsScreen extends Screen {
             ctx.drawTextWithShadow(textRenderer, e.getKey(), barX + 2, by + 2, ModColors.TEXT_WHITE);
 
             int rarCol1 = RARITY_COL.getOrDefault(rar1, ModColors.TEXT_MUTED_ARGB);
-            ctx.drawTextWithShadow(textRenderer, rar1, cx1 + cw1 - valW - rarW, by + 2, rarCol1);
+            int rarTx1  = cx1 + cw1 - valW - rarW;
+            ctx.drawTextWithShadow(textRenderer, rarityDisplay(rar1), rarTx1, by + 2, rarCol1);
+            if (EVENT_NAMES.containsKey(rar1))
+                checkRectTooltip(rarTx1, by + 2, textRenderer.getWidth("EVENT"), 9,
+                    List.of(Text.literal(rar1).withColor(0xFFFFFFFF)));
 
             String cntShort = formatShort(e.getValue());
             int cntTx = cx1 + cw1 - valW;
@@ -702,7 +730,11 @@ public class FishStatsScreen extends Screen {
             ctx.drawTextWithShadow(textRenderer, e.getKey(), barX + 2, by + 2, ModColors.TEXT_WHITE);
 
             int rarCol2 = RARITY_COL.getOrDefault(rar2, ModColors.TEXT_MUTED_ARGB);
-            ctx.drawTextWithShadow(textRenderer, rar2, cx2 + cw2 - valW - rarW, by + 2, rarCol2);
+            int rarTx2  = cx2 + cw2 - valW - rarW;
+            ctx.drawTextWithShadow(textRenderer, rarityDisplay(rar2), rarTx2, by + 2, rarCol2);
+            if (EVENT_NAMES.containsKey(rar2))
+                checkRectTooltip(rarTx2, by + 2, textRenderer.getWidth("EVENT"), 9,
+                    List.of(Text.literal(rar2).withColor(0xFFFFFFFF)));
 
             String priceShort = formatShort(e.getValue()) + "$";
             int priceTx = cx2 + cw2 - valW;
@@ -733,7 +765,6 @@ public class FishStatsScreen extends Screen {
         if (sizesByRarity.isEmpty()) return;
 
         var entries = sizesByRarity.entrySet().stream()
-            .filter(e -> e.getValue().size() >= 3)
             .sorted(Comparator.comparingInt(e -> {
                 int idx = RARITY_ORDER.indexOf(e.getKey());
                 return idx < 0 ? RARITY_ORDER.size() : idx;
@@ -743,6 +774,7 @@ public class FishStatsScreen extends Screen {
             ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.empty.nodata"), x + w/2, y + h/2, ModColors.TEXT_WHITE);
             return;
         }
+        var richEntries = entries.stream().filter(e -> e.getValue().size() >= 3).collect(Collectors.toList());
 
         // ── Bouton LIN / LOG ─────────────────────────────────────────────────
         sizesLogBtnX = x + w - LOG_BTN_W - 2;
@@ -756,9 +788,10 @@ public class FishStatsScreen extends Screen {
             sizesLogBtnX + LOG_BTN_W / 2, sizesLogBtnY + 2,
             sizesLogScale ? ModColors.TEXT_PRICE : ModColors.BTN_TEXT_NORMAL);
 
-        // ── Calcul des bornes ─────────────────────────────────────────────────
-        double rawMin = entries.stream().flatMapToDouble(e -> e.getValue().stream().mapToDouble(d -> d)).min().orElse(1);
-        double rawMax = entries.stream().flatMapToDouble(e -> e.getValue().stream().mapToDouble(d -> d)).max().orElse(100);
+        // ── Calcul des bornes (uniquement les raretés avec assez de data) ────────
+        var scaleSource = richEntries.isEmpty() ? entries : richEntries;
+        double rawMin = scaleSource.stream().flatMapToDouble(e -> e.getValue().stream().mapToDouble(d -> d)).min().orElse(1);
+        double rawMax = scaleSource.stream().flatMapToDouble(e -> e.getValue().stream().mapToDouble(d -> d)).max().orElse(100);
         if (rawMax <= rawMin) rawMax = rawMin + 10;
 
         // En échelle log, on travaille en log10(v) — floor à 0.01 pour éviter log(0)
@@ -781,15 +814,33 @@ public class FishStatsScreen extends Screen {
         for (int i = 0; i < entries.size(); i++) {
             var e    = entries.get(i);
             var vals = e.getValue();
+            int col  = RARITY_COL.getOrDefault(e.getKey(), ModColors.RARITY_UNKNOWN);
+            int bx   = plotX + i * bw + bw/5;
+            int bwb  = bw * 3 / 5;
+
+            // Label commun (sous le graphique)
+            boolean isEvent = EVENT_NAMES.containsKey(e.getKey());
+            String label = isEvent ? "EVT" : e.getKey().substring(0, Math.min(3, e.getKey().length()));
+            int labelCol = isEvent ? 0xFFFFFF : (vals.size() < 3 ? col & 0x88FFFFFF : col);
+            ctx.drawCenteredTextWithShadow(textRenderer, label, bx + bwb/2, plotY + plotH + 2, labelCol);
+            if (isEvent)
+                checkRectTooltip(bx, plotY + plotH + 2, bwb, 9,
+                    List.of(Text.literal(e.getKey()).withColor(0xFFFFFFFF)));
+
+            if (vals.size() < 3) {
+                // Colonne grisée + message "pas assez de données"
+                ctx.fill(bx, plotY, bx + bwb, plotY + plotH, col & 0x22FFFFFF | 0x22000000);
+                ctx.drawCenteredTextWithShadow(textRenderer,
+                    I18n.translate("fishlog.empty.nodata"),
+                    bx + bwb/2, plotY + plotH/2 - 4, ModColors.TEXT_VERY_MUTED);
+                continue;
+            }
+
             double q1  = percentile(vals, 25);
             double med = percentile(vals, 50);
             double q3  = percentile(vals, 75);
             double lo  = vals.get(0);
             double hi  = vals.get(vals.size()-1);
-
-            int col  = RARITY_COL.getOrDefault(e.getKey(), ModColors.RARITY_UNKNOWN);
-            int bx   = plotX + i * bw + bw/5;
-            int bwb  = bw * 3 / 5;
 
             int yQ1  = plotY + plotH - (int)(plotH * toNorm.apply(q1));
             int yMed = plotY + plotH - (int)(plotH * toNorm.apply(med));
@@ -807,10 +858,6 @@ public class FishStatsScreen extends Screen {
             int mid = bx + bwb/2;
             ctx.fill(mid, yHi, mid + 1, yQ3, col);
             ctx.fill(mid, yQ1, mid + 1, yLo, col);
-            // Nom
-            ctx.drawCenteredTextWithShadow(textRenderer,
-                e.getKey().substring(0, Math.min(3, e.getKey().length())),
-                bx + bwb/2, plotY + plotH + 2, col);
 
             // Hover tooltip
             List<FishRecord> rarityRecs = fishRecordsByRarity.getOrDefault(e.getKey(), List.of());
@@ -1072,7 +1119,11 @@ public class FishStatsScreen extends Screen {
             int rCol = RARITY_COL.getOrDefault(r.rarity, ModColors.TEXT_MUTED_ARGB);
             cx = x;
             ctx.drawTextWithShadow(textRenderer, r.timestamp.format(DT_FMT),         cx + 2, rowY + 1, ModColors.TEXT_LIGHT);  cx += widths[0];
-            ctx.drawTextWithShadow(textRenderer, r.rarity,                            cx + 2, rowY + 1, rCol);       cx += widths[1];
+            ctx.drawTextWithShadow(textRenderer, rarityDisplay(r.rarity), cx + 2, rowY + 1, rCol);
+            if (EVENT_NAMES.containsKey(r.rarity))
+                checkRectTooltip(cx + 2, rowY + 1, textRenderer.getWidth("EVENT"), 9,
+                    List.of(Text.literal(r.rarity).withColor(0xFFFFFFFF)));
+            cx += widths[1];
             ItemStack fishIcon = FishTextureCache.getItemStack(r.fish, r.rarity);
             if (fishIcon != null) renderScaledItem(ctx, fishIcon, cx + 1, rowY + 1, 8);
             ctx.drawTextWithShadow(textRenderer, r.fish, cx + (fishIcon != null ? 10 : 2), rowY + 1, ModColors.TEXT_WHITE);     cx += widths[2];

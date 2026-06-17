@@ -5,7 +5,7 @@ public final class ModColors {
     private ModColors() {}
 
     // ── Raretés ──────────────────────────────────────────────────────────────
-    public static final int RARITY_COMMUN     = 0xFFAAAAAA;
+    public static final int RARITY_COMMUN     = 0xFF88DD88;
     public static final int RARITY_RARE       = 0xFF4488FF;
     public static final int RARITY_EPIQUE     = 0xFFAA44FF;
     public static final int RARITY_EMISSAIRE  = 0xFF44CCAA;
@@ -14,12 +14,13 @@ public final class ModColors {
     public static final int RARITY_COSMIQUE   = 0xFFFFFFFF; // rareté vide ""
     public static final int RARITY_PERDU      = 0xFF888888;
     public static final int RARITY_ARTEFACT   = 0xFFFF8844;
+    public static final int RARITY_EVENT      = 0xFFFF44CC;
     public static final int RARITY_UNKNOWN    = 0xFF888888;
 
     // ── Appâts ────────────────────────────────────────────────────────────────
     public static final int BAIT_BLEU         = 0xFF4488FF;  // Ver Luisant, Slime Royal
     public static final int BAIT_GRIS         = 0xFF888888;  // Aimant
-    public static final int BAIT_VIOLET       = 0xFFAA44FF;  // Appat Runic, Leurre Mecanique
+    public static final int BAIT_VIOLET       = 0xFFAA44FF;  // Appat Runique, Leurre Mecanique
     public static final int BAIT_ORANGE       = 0xFFFFCC00;  // Companion cube, Ruche de Nimeria
     public static final int BAIT_ROUGE        = 0xFFFF4444;  // Zekappat, Lisappat
     public static final int BAIT_BLEU_FONCE   = 0xFF2244AA;  // Lanterne Abyssale, Rune Atlante
