@@ -43,9 +43,11 @@
   "fishlog.hourly.label":   "Heure",
   "fishlog.hourly.tooltip": "%d pêches à %dh",
   "fishlog.daily.title":    "Poissons / jour",
+  "fishlog.daily.tooltip":  "%d pêches le %s",
 
   "fishlog.cumul.footer":        "Total : %.0f$  |  %d prise",
   "fishlog.cumul.footer.plural": "Total : %.0f$  |  %d prises",
+  "fishlog.cumul.tooltip":       "%s  —  %d$",
 
   "fishlog.footer.records":        "%d entrée  —  molette pour défiler",
   "fishlog.footer.records.plural": "%d entrées  —  molette pour défiler",

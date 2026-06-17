@@ -43,9 +43,11 @@
   "fishlog.hourly.label":   "Hour",
   "fishlog.hourly.tooltip": "%d catches at %dh",
   "fishlog.daily.title":    "Fish / day",
+  "fishlog.daily.tooltip":  "%d catches on %s",
 
   "fishlog.cumul.footer":        "Total: %.0f$  |  %d catch",
   "fishlog.cumul.footer.plural": "Total: %.0f$  |  %d catches",
+  "fishlog.cumul.tooltip":       "%s  —  %d$",
 
   "fishlog.footer.records":        "%d entry  —  scroll to browse",
   "fishlog.footer.records.plural": "%d entries  —  scroll to browse",
