@@ -43,6 +43,11 @@ public class FishStatsScreen extends Screen {
         RARITY_COL.put("ARTEFACT",   ModColors.RARITY_ARTEFACT);
     }
 
+    // ── Ordre d'affichage des raretés dans le box plot ───────────────────────
+    private static final List<String> RARITY_ORDER = List.of(
+        "PERDU", "COMMUN", "RARE", "ÉPIQUE", "LÉGENDAIRE", "MYTHIQUE", "ABYSSAL", "ÉMISSAIRE", "ARTEFACT"
+    );
+
     // ── Couleurs ARGB par appât ───────────────────────────────────────────────
     private static final Map<String, Integer> BAIT_COL = new LinkedHashMap<>();
     private static final Map<String, Integer> BAIT_COL_NORM = new HashMap<>();
@@ -75,6 +80,7 @@ public class FishStatsScreen extends Screen {
     private double[] cumTimes;   // temps en minutes depuis le 1er
     private double[] cumValues;  // cumul des prix
     private Map<String, List<Double>>              sizesByRarity;
+    private Map<String, List<FishRecord>>          fishRecordsByRarity;
     private List<FishRecord>                       allRecords;
     private Map<String, java.time.LocalDateTime>   lastByRarity;
 
@@ -139,8 +145,8 @@ public class FishStatsScreen extends Screen {
     private List<Map.Entry<String,Double>>      filteredTopValue  = List.of();
 
     // ── Tooltip hover ─────────────────────────────────────────────────────────
-    private int    lastMx, lastMy;
-    private String pendingTooltip = null;
+    private int         lastMx, lastMy;
+    private List<Text>  pendingTooltip = null;
 
     // ── Échelle logarithmique pour SIZES ──────────────────────────────────────
     private boolean sizesLogScale = false;
@@ -231,8 +237,10 @@ public class FishStatsScreen extends Screen {
 
         // Tailles par rareté (pour box plot)
         sizesByRarity = new LinkedHashMap<>();
+        fishRecordsByRarity = new LinkedHashMap<>();
         for (FishRecord r : records) {
             sizesByRarity.computeIfAbsent(r.rarity, k -> new ArrayList<>()).add(r.sizeCm);
+            fishRecordsByRarity.computeIfAbsent(r.rarity, k -> new ArrayList<>()).add(r);
         }
         sizesByRarity.values().forEach(Collections::sort);
 
@@ -443,7 +451,7 @@ public class FishStatsScreen extends Screen {
         }
 
         if (pendingTooltip != null) {
-            ctx.drawTooltip(textRenderer, Text.literal(pendingTooltip), mx, my);
+            ctx.drawTooltip(textRenderer, pendingTooltip, mx, my);
         }
         super.render(ctx, mx, my, delta);
     }
@@ -712,6 +720,10 @@ public class FishStatsScreen extends Screen {
 
         var entries = sizesByRarity.entrySet().stream()
             .filter(e -> e.getValue().size() >= 3)
+            .sorted(Comparator.comparingInt(e -> {
+                int idx = RARITY_ORDER.indexOf(e.getKey());
+                return idx < 0 ? RARITY_ORDER.size() : idx;
+            }))
             .collect(Collectors.toList());
         if (entries.isEmpty()) {
             ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.empty.nodata"), x + w/2, y + h/2, ModColors.TEXT_WHITE);
@@ -785,6 +797,23 @@ public class FishStatsScreen extends Screen {
             ctx.drawCenteredTextWithShadow(textRenderer,
                 e.getKey().substring(0, Math.min(3, e.getKey().length())),
                 bx + bwb/2, plotY + plotH + 2, col);
+
+            // Hover tooltip
+            List<FishRecord> rarityRecs = fishRecordsByRarity.getOrDefault(e.getKey(), List.of());
+            if (!rarityRecs.isEmpty()) {
+                FishRecord maxFish = rarityRecs.stream().max(Comparator.comparingDouble(r -> r.sizeCm)).orElse(null);
+                FishRecord minFish = rarityRecs.stream().min(Comparator.comparingDouble(r -> r.sizeCm)).orElse(null);
+                List<Text> lines = new ArrayList<>();
+                lines.add(Text.literal(e.getKey()).withColor(col));
+                if (maxFish != null)
+                    lines.add(Text.literal(I18n.translate("fishlog.sizes.tooltip.max", maxFish.fish, maxFish.sizeCm)));
+                if (minFish != null)
+                    lines.add(Text.literal(I18n.translate("fishlog.sizes.tooltip.min", minFish.fish, minFish.sizeCm)));
+                lines.add(Text.literal(I18n.translate("fishlog.sizes.tooltip.q1", q1)));
+                lines.add(Text.literal(I18n.translate("fishlog.sizes.tooltip.median", med)));
+                lines.add(Text.literal(I18n.translate("fishlog.sizes.tooltip.q3", q3)));
+                checkRectTooltip(bx, plotY, bwb, plotH, lines);
+            }
         }
 
         // Axe Y : ticks adaptés à l'échelle
@@ -1286,7 +1315,13 @@ public class FishStatsScreen extends Screen {
     private void checkTooltip(int tx, int ty, String shortText, String fullText) {
         int tw = textRenderer.getWidth(shortText);
         if (lastMx >= tx && lastMx <= tx + tw && lastMy >= ty && lastMy <= ty + 9) {
-            pendingTooltip = fullText;
+            pendingTooltip = List.of(Text.literal(fullText));
+        }
+    }
+
+    private void checkRectTooltip(int rx, int ry, int rw, int rh, List<Text> lines) {
+        if (lastMx >= rx && lastMx <= rx + rw && lastMy >= ry && lastMy <= ry + rh) {
+            pendingTooltip = lines;
         }
     }
 
