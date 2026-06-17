@@ -386,33 +386,33 @@ public class FishStatsScreen extends Screen {
     }
 
     private void updateFiltered() {
-        String q = searchField != null ? searchField.getText().trim().toLowerCase() : "";
+        String q = searchField != null ? stripAccents(searchField.getText().trim()) : "";
         if (q.isEmpty()) {
             filteredRecords     = allRecords;
             filteredBaitRecords = allBaitRecords;
         } else {
             filteredRecords = allRecords.stream()
-                .filter(r -> r.fish.toLowerCase().contains(q) || rarityForSearch(r.rarity).contains(q))
+                .filter(r -> stripAccents(r.fish).contains(q) || stripAccents(rarityForSearch(r.rarity)).contains(q))
                 .collect(Collectors.toList());
             filteredBaitRecords = allBaitRecords.stream()
-                .filter(r -> r.bait.toLowerCase().contains(q))
+                .filter(r -> stripAccents(r.bait).contains(q))
                 .collect(Collectors.toList());
         }
     }
 
     private void updateTopFiltered() {
-        String q = topSearchField != null ? topSearchField.getText().trim().toLowerCase() : "";
+        String q = topSearchField != null ? stripAccents(topSearchField.getText().trim()) : "";
         if (q.isEmpty()) {
             filteredTopCount = topCount;
             filteredTopValue = topValue;
         } else {
             filteredTopCount = topCount.stream()
-                .filter(e -> e.getKey().toLowerCase().contains(q)
-                          || rarityForSearch(fishRarity.getOrDefault(e.getKey(), "")).contains(q))
+                .filter(e -> stripAccents(e.getKey()).contains(q)
+                          || stripAccents(rarityForSearch(fishRarity.getOrDefault(e.getKey(), ""))).contains(q))
                 .collect(Collectors.toList());
             filteredTopValue = topValue.stream()
-                .filter(e -> e.getKey().toLowerCase().contains(q)
-                          || rarityForSearch(fishRarity.getOrDefault(e.getKey(), "")).contains(q))
+                .filter(e -> stripAccents(e.getKey()).contains(q)
+                          || stripAccents(rarityForSearch(fishRarity.getOrDefault(e.getKey(), ""))).contains(q))
                 .collect(Collectors.toList());
         }
     }
@@ -425,6 +425,19 @@ public class FishStatsScreen extends Screen {
         if (eventName != null) return "event " + eventName;
         if (rarity.chars().noneMatch(Character::isLetterOrDigit)) return "abyssale";
         return rarity.toLowerCase();
+    }
+
+    private static String stripAccents(String s) {
+        if (s == null) return "";
+        s = s.toLowerCase();
+        s = s.replace("é","e").replace("è","e").replace("ê","e").replace("ë","e");
+        s = s.replace("à","a").replace("â","a").replace("á","a");
+        s = s.replace("ô","o").replace("ö","o").replace("ó","o");
+        s = s.replace("î","i").replace("ï","i");
+        s = s.replace("ù","u").replace("û","u").replace("ü","u");
+        s = s.replace("ç","c");
+        s = s.replace("œ","oe").replace("æ","ae");
+        return s;
     }
 
     private static String rarityDisplay(String rarity) {
@@ -1167,8 +1180,13 @@ public class FishStatsScreen extends Screen {
             ctx.fill(x, rowY, x + w, rowY + ROW_H, (i % 2 == 0) ? ModColors.ROW_EVEN : ModColors.ROW_ODD_ALT);
 
             int rCol = RARITY_COL.getOrDefault(r.rarity, ModColors.TEXT_MUTED_ARGB);
+            java.time.LocalDate today = java.time.LocalDate.now();
+            java.time.LocalDate rDate = r.timestamp.toLocalDate();
+            int dateCol = rDate.equals(today)              ? 0xFF55FF55
+                        : rDate.equals(today.minusDays(1)) ? 0xFFFFAA00
+                        : ModColors.TEXT_MUTED_ARGB;
             cx = x;
-            ctx.drawTextWithShadow(textRenderer, r.timestamp.format(DT_FMT),         cx + 2, rowY + 1, ModColors.TEXT_LIGHT);  cx += widths[0];
+            ctx.drawTextWithShadow(textRenderer, r.timestamp.format(DT_FMT),         cx + 2, rowY + 1, dateCol);  cx += widths[0];
             ctx.drawTextWithShadow(textRenderer, rarityDisplay(r.rarity), cx + 2, rowY + 1, rCol);
             if (EVENT_NAMES.containsKey(r.rarity))
                 checkRectTooltip(cx + 2, rowY + 1, textRenderer.getWidth("EVENT"), 9,
