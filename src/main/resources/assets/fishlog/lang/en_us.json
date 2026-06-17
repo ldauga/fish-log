@@ -61,6 +61,10 @@
   "fishlog.footer.bait_top":        "%d type  —  scroll to browse",
   "fishlog.footer.bait_top.plural": "%d types  —  scroll to browse",
 
+  "fishlog.bait.hourly.tooltip": "%d baits at %dh",
+  "fishlog.bait.daily.title":    "Baits / day",
+  "fishlog.bait.daily.tooltip":  "%d baits on %s",
+
   "fishlog.bait.cumul.footer":        "Total: %.0f bait",
   "fishlog.bait.cumul.footer.plural": "Total: %.0f baits",
 

@@ -108,6 +108,8 @@ public class FishStatsScreen extends Screen {
     private List<Map.Entry<String, java.time.LocalDateTime>>    baitLastEntries;
     private Map<String, java.time.LocalDateTime>                lastByBait;
     private int[]    baitHourly  = new int[24];
+    private java.time.LocalDate[] baitDailyDates;
+    private int[]                 baitDailyCounts;
     private double[] baitCumTimes;
     private double[] baitCumValues;
     private List<BaitRecord> allBaitRecords;
@@ -298,6 +300,11 @@ public class FishStatsScreen extends Screen {
 
         Arrays.fill(baitHourly, 0);
         for (BaitRecord r : baitRecs) baitHourly[r.timestamp.getHour()]++;
+
+        TreeMap<java.time.LocalDate, Integer> baitDailyMap = new TreeMap<>();
+        for (BaitRecord r : baitRecs) baitDailyMap.merge(r.timestamp.toLocalDate(), 1, Integer::sum);
+        baitDailyDates  = baitDailyMap.keySet().toArray(new java.time.LocalDate[0]);
+        baitDailyCounts = baitDailyMap.values().stream().mapToInt(Integer::intValue).toArray();
 
         if (baitRecs.size() >= 2) {
             List<BaitRecord> bSorted = new ArrayList<>(baitRecs);
@@ -1299,24 +1306,92 @@ public class FishStatsScreen extends Screen {
     //  BAIT HOURLY – répartition horaire des appâts
     // ─────────────────────────────────────────────────────────────────────────
     private void renderBaitHourly(DrawContext ctx, int x, int y, int w, int h) {
+        int usableH     = h - 12;
+        int hourlyAreaH = usableH * 48 / 100;
+        int sepY        = y + hourlyAreaH;
+
+        ctx.drawCenteredTextWithShadow(textRenderer,
+            I18n.translate("fishlog.hourly.label"), x + w / 2, y + 1, ModColors.TEXT_MUTED);
+
         int maxH = Arrays.stream(baitHourly).max().orElse(1);
         if (maxH == 0) maxH = 1;
-        int plotH = h - 32, plotW = w - 20;
-        int topOff = 12;
-        int bw    = plotW / 24;
+        int plotH  = hourlyAreaH - 20;
+        int plotW  = w - 20;
+        int bw     = plotW / 24;
+        int topOff = 10;
         for (int i = 0; i < 24; i++) {
             int bh  = baitHourly[i] * plotH / maxH;
             int bxi = x + 10 + i * bw;
             int byi = y + topOff + (plotH - bh);
             ctx.fill(bxi, byi, bxi + bw - 1, y + topOff + plotH, ModColors.CHART_HOURLY_BAIT);
             if (i % 4 == 0) {
-                ctx.drawCenteredTextWithShadow(textRenderer, String.valueOf(i), bxi + bw/2, y + topOff + plotH + 2, ModColors.TEXT_MUTED);
+                ctx.drawCenteredTextWithShadow(textRenderer,
+                    String.valueOf(i), bxi + bw / 2, y + topOff + plotH + 2, ModColors.TEXT_MUTED);
             }
             if (baitHourly[i] > 0) {
-                drawFittedText(ctx, String.valueOf(baitHourly[i]), bxi + bw/2, byi - 9, bw - 1, ModColors.TEXT_WHITE);
+                String hShort = formatShort(baitHourly[i]);
+                drawFittedText(ctx, hShort, bxi + bw / 2, byi - 9, bw - 1, ModColors.TEXT_WHITE);
+                int barBottom = y + topOff + plotH;
+                if (lastMx >= bxi && lastMx < bxi + bw && lastMy >= byi && lastMy <= barBottom) {
+                    pendingTooltip = List.of(Text.literal(I18n.translate("fishlog.bait.hourly.tooltip", baitHourly[i], i)));
+                }
             }
         }
-        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.hourly.label"), x + w/2 - 10, y + h - 8, ModColors.TEXT_MUTED);
+
+        ctx.fill(x, sepY, x + w, sepY + 1, ModColors.UI_DIVIDER);
+
+        int dailyY = sepY + 2;
+        int dailyH = usableH - hourlyAreaH - 3;
+
+        ctx.drawCenteredTextWithShadow(textRenderer,
+            I18n.translate("fishlog.bait.daily.title"), x + w / 2, dailyY + 1, ModColors.TEXT_MUTED);
+
+        if (baitDailyCounts == null || baitDailyCounts.length < 2) {
+            ctx.drawCenteredTextWithShadow(textRenderer,
+                I18n.translate("fishlog.empty.nodata"), x + w / 2, dailyY + dailyH / 2, ModColors.TEXT_WHITE);
+            return;
+        }
+
+        int n    = baitDailyCounts.length;
+        int maxV = Arrays.stream(baitDailyCounts).max().orElse(1);
+        if (maxV == 0) maxV = 1;
+
+        int plotX  = x + 28;
+        int plotY2 = dailyY + 12;
+        int plotW2 = w - 36;
+        int plotH2 = dailyH - 24;
+        if (plotH2 < 8) return;
+        ctx.fill(plotX, plotY2, plotX + plotW2, plotY2 + plotH2, ModColors.PLOT_BG);
+
+        for (int i = 0; i < n - 1; i++) {
+            float t1 = (float) i / (n - 1);
+            float t2 = (float) (i + 1) / (n - 1);
+            float v1 = (float) baitDailyCounts[i] / maxV;
+            float v2 = (float) baitDailyCounts[i + 1] / maxV;
+            int x1 = plotX + (int)(plotW2 * t1);
+            int x2 = plotX + (int)(plotW2 * t2);
+            int y1 = plotY2 + plotH2 - (int)(plotH2 * v1);
+            int y2 = plotY2 + plotH2 - (int)(plotH2 * v2);
+            for (int px = x1; px <= x2 && px < plotX + plotW2; px++) {
+                int yTop = px == x1 ? y1 : y1 + (y2 - y1) * (px - x1) / Math.max(1, x2 - x1);
+                ctx.fill(px, yTop, px + 1, plotY2 + plotH2, ModColors.CHART_BAIT_FILL);
+            }
+            thickLine(plotX, plotY2, plotW2, plotH2, t1, v1, t2, v2, 2f, ModColors.CHART_BAIT_LINE);
+        }
+
+        for (int t = 0; t <= 4; t++) {
+            int yt = plotY2 + plotH2 - t * plotH2 / 4;
+            ctx.fill(plotX, yt, plotX + plotW2, yt + 1, ModColors.CHART_GRID);
+            ctx.drawTextWithShadow(textRenderer,
+                String.valueOf((int) Math.round(maxV * t / 4.0)), x, yt - 4, ModColors.TEXT_MUTED);
+        }
+
+        if (lastMx >= plotX && lastMx <= plotX + plotW2 && lastMy >= plotY2 && lastMy <= plotY2 + plotH2) {
+            int hovI = Math.round((float)(lastMx - plotX) / plotW2 * (n - 1));
+            hovI = Math.max(0, Math.min(n - 1, hovI));
+            DateTimeFormatter fmtFull = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+            pendingTooltip = List.of(Text.literal(I18n.translate("fishlog.bait.daily.tooltip", baitDailyCounts[hovI], baitDailyDates[hovI].format(fmtFull))));
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────

@@ -61,6 +61,10 @@
   "fishlog.footer.bait_top":        "%d type  —  molette pour défiler",
   "fishlog.footer.bait_top.plural": "%d types  —  molette pour défiler",
 
+  "fishlog.bait.hourly.tooltip": "%d appâts à %dh",
+  "fishlog.bait.daily.title":    "Appâts / jour",
+  "fishlog.bait.daily.tooltip":  "%d appâts le %s",
+
   "fishlog.bait.cumul.footer":        "Total : %.0f appât",
   "fishlog.bait.cumul.footer.plural": "Total : %.0f appâts",
 
