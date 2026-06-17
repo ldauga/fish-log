@@ -429,6 +429,7 @@ public class FishStatsScreen extends Screen {
 
     private static String rarityDisplay(String rarity) {
         if (EVENT_NAMES.containsKey(rarity)) return "EVENT";
+        if ("LÉGENDAIRE".equals(rarity)) return "LEGEND";
         return rarity;
     }
 
