@@ -122,6 +122,7 @@ public class FishStatsScreen extends Screen {
     private int[]                 baitDailyCounts;
     private double[] baitCumTimes;
     private double[] baitCumValues;
+    private java.time.LocalDateTime[] baitCumDates;
     private List<BaitRecord> allBaitRecords;
 
     // ── Scroll pour la table RECORDS et le tab TOP ───────────────────────────
@@ -326,15 +327,18 @@ public class FishStatsScreen extends Screen {
             bSorted.sort(Comparator.comparing(r -> r.timestamp));
             baitCumTimes  = new double[bSorted.size()];
             baitCumValues = new double[bSorted.size()];
+            baitCumDates  = new java.time.LocalDateTime[bSorted.size()];
             long bt0 = bSorted.get(0).timestamp.toEpochSecond(java.time.ZoneOffset.UTC);
             for (int i = 0; i < bSorted.size(); i++) {
                 long ti = bSorted.get(i).timestamp.toEpochSecond(java.time.ZoneOffset.UTC);
                 baitCumTimes[i]  = (ti - bt0) / 60.0;
                 baitCumValues[i] = i + 1;
+                baitCumDates[i]  = bSorted.get(i).timestamp;
             }
         } else {
-            baitCumTimes = null;
+            baitCumTimes  = null;
             baitCumValues = null;
+            baitCumDates  = null;
         }
 
         allBaitRecords = new ArrayList<>(baitRecs);
@@ -1471,29 +1475,73 @@ public class FishStatsScreen extends Screen {
         int plotX = x + 30, plotY = y + 10, plotW = w - 40, plotH = h - 25;
         ctx.fill(plotX, plotY, plotX + plotW, plotY + plotH, ModColors.PLOT_BG);
 
-        for (int i = 0; i < baitCumTimes.length - 1; i++) {
-            int x1 = plotX + (int)(plotW * baitCumTimes[i]   / maxT);
-            int x2 = plotX + (int)(plotW * baitCumTimes[i+1] / maxT);
-            int y1 = plotY + plotH - (int)(plotH * baitCumValues[i]   / maxV);
-            int y2 = plotY + plotH - (int)(plotH * baitCumValues[i+1] / maxV);
-            for (int px = x1; px <= x2 && px < plotX + plotW; px++) {
-                int yTop = px == x1 ? y1 : y1 + (y2 - y1) * (px - x1) / Math.max(1, x2 - x1);
-                ctx.fill(px, yTop, px + 1, plotY + plotH, ModColors.CHART_BAIT_FILL);
+        // Précalcul : une valeur Y par colonne pixel (O(plotW) au lieu de O(N))
+        int[] colY = new int[plotW];
+        int dataIdx = 0;
+        for (int px = 0; px < plotW; px++) {
+            double t = maxT * px / (plotW - 1);
+            while (dataIdx < baitCumTimes.length - 1 && baitCumTimes[dataIdx + 1] <= t) dataIdx++;
+            double v;
+            if (dataIdx >= baitCumTimes.length - 1) {
+                v = baitCumValues[baitCumValues.length - 1];
+            } else {
+                double dt = baitCumTimes[dataIdx + 1] - baitCumTimes[dataIdx];
+                double frac = dt > 0 ? (t - baitCumTimes[dataIdx]) / dt : 0;
+                v = baitCumValues[dataIdx] + frac * (baitCumValues[dataIdx + 1] - baitCumValues[dataIdx]);
             }
-            thickLine(plotX, plotY, plotW, plotH,
-                (float)(baitCumTimes[i]  /maxT), (float)(baitCumValues[i]  /maxV),
-                (float)(baitCumTimes[i+1]/maxT), (float)(baitCumValues[i+1]/maxV),
-                2f, ModColors.CHART_BAIT_LINE);
+            colY[px] = plotY + plotH - (int)(plotH * v / maxV);
         }
 
+        // Aire sous la courbe (O(plotW) fill calls)
+        for (int px = 0; px < plotW; px++) {
+            ctx.fill(plotX + px, colY[px], plotX + px + 1, plotY + plotH, ModColors.CHART_BAIT_FILL);
+        }
+
+        // Ligne épaisse en un seul draw call batchifié
+        var tess = Tessellator.getInstance();
+        var buf  = tess.begin(VertexFormat.DrawMode.TRIANGLES, VertexFormats.POSITION_COLOR);
+        for (int px = 0; px < plotW - 1; px++) {
+            float fx1 = plotX + px,     fy1 = colY[px];
+            float fx2 = plotX + px + 1, fy2 = colY[px + 1];
+            float ddx = fx2 - fx1, ddy = fy2 - fy1;
+            float len = (float) Math.sqrt(ddx * ddx + ddy * ddy);
+            if (len < 0.001f) continue;
+            float nx = -ddy / len, ny = ddx / len;
+            buf.vertex(fx1 + nx, fy1 + ny, 0f).color(ModColors.CHART_BAIT_LINE);
+            buf.vertex(fx1 - nx, fy1 - ny, 0f).color(ModColors.CHART_BAIT_LINE);
+            buf.vertex(fx2 + nx, fy2 + ny, 0f).color(ModColors.CHART_BAIT_LINE);
+            buf.vertex(fx2 + nx, fy2 + ny, 0f).color(ModColors.CHART_BAIT_LINE);
+            buf.vertex(fx1 - nx, fy1 - ny, 0f).color(ModColors.CHART_BAIT_LINE);
+            buf.vertex(fx2 - nx, fy2 - ny, 0f).color(ModColors.CHART_BAIT_LINE);
+        }
+        RenderSystem.setShader(GameRenderer::getPositionColorProgram);
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        BufferRenderer.drawWithGlobalProgram(buf.end());
+        RenderSystem.disableBlend();
+
+        // Axes
         for (int t = 0; t <= 4; t++) {
             int yt = plotY + plotH - t * plotH / 4;
             ctx.fill(plotX, yt, plotX + plotW, yt + 1, ModColors.CHART_GRID);
             ctx.drawTextWithShadow(textRenderer, String.format("%.0f", maxV * t / 4), x, yt - 4, ModColors.TEXT_MUTED);
         }
+        int baitCumulCnt = baitCumTimes.length;
         ctx.drawCenteredTextWithShadow(textRenderer,
-            I18n.translate(maxV > 1 ? "fishlog.bait.cumul.footer.plural" : "fishlog.bait.cumul.footer", maxV),
+            I18n.translate(maxV > 1 ? "fishlog.bait.cumul.footer.plural" : "fishlog.bait.cumul.footer", (int) maxV),
             plotX + plotW/2, plotY + plotH + 6, ModColors.TEXT_WHITE);
+
+        // Hover tooltip : recherche binaire sur baitCumTimes
+        if (lastMx >= plotX && lastMx <= plotX + plotW && lastMy >= plotY && lastMy <= plotY + plotH) {
+            double tCursor = maxT * (lastMx - plotX) / (double) plotW;
+            int lo = 0, hi = baitCumTimes.length - 1;
+            while (lo < hi - 1) {
+                int mid = (lo + hi) >> 1;
+                if (baitCumTimes[mid] <= tCursor) lo = mid; else hi = mid;
+            }
+            int hovI = Math.abs(baitCumTimes[lo] - tCursor) <= Math.abs(baitCumTimes[hi] - tCursor) ? lo : hi;
+            pendingTooltip = List.of(Text.literal(I18n.translate("fishlog.cumul.tooltip", baitCumDates[hovI].format(CUMUL_FMT), Math.round(baitCumValues[hovI]))));
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
