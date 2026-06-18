@@ -90,5 +90,8 @@
   "fishlog.hof.col.amount":       "Don",
   "fishlog.hof.col.date":         "Date",
   "fishlog.hof.footer":           "%d donateur",
-  "fishlog.hof.footer.plural":    "%d donateurs"
+  "fishlog.hof.footer.plural":    "%d donateurs",
+
+  "fishlog.hof.podium.amount": "Top Donateurs",
+  "fishlog.hof.podium.time":   "Ancienneté"
 }

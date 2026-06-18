@@ -27,7 +27,7 @@ public class FishLogMod implements ClientModInitializer {
     private static final Pattern FISH_PATTERN     = LogParser.FISH_PATTERN;
     private static final Pattern BAIT_PATTERN     = LogParser.BAIT_PATTERN;
     private static final Pattern DONATION_PATTERN =
-        Pattern.compile("Vous avez payé LeLeoOriginel ✧(\\d+(?:[.,]\\d+)?)");
+        Pattern.compile("Vous avez payé LeLeoOriginel ✧([\\d ]+(?:[.,]\\d+)?)");
 
 
     private KeyBinding statsKey;
@@ -73,6 +73,7 @@ public class FishLogMod implements ClientModInitializer {
             FavoritesStore.INSTANCE.init(favPath);
 
             DonationStore.INSTANCE.init(client.runDirectory.toPath());
+            DonationHeadCache.invalidate();
 
             // Scanner les logs à chaque connexion pour importer les entrées manquantes
             if (client.player == null) return;
@@ -163,7 +164,7 @@ public class FishLogMod implements ClientModInitializer {
             MinecraftClient mc = MinecraftClient.getInstance();
             if (mc == null || mc.player == null) return;
             String player = mc.player.getGameProfile().getName();
-            double amount = Double.parseDouble(dm.group(1).replace(",", "."));
+            double amount = Double.parseDouble(dm.group(1).replace(" ", "").replace(",", "."));
             java.time.LocalDateTime now = java.time.LocalDateTime.now();
             String encrypted = DonationCrypto.encrypt(player, amount, now);
             if (encrypted != null) {

@@ -10,9 +10,11 @@ import net.minecraft.client.render.Tessellator;
 import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormats;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.Items;
 import net.minecraft.text.Text;
 
 import java.time.format.DateTimeFormatter;
+import java.util.stream.Stream;
 import net.minecraft.client.resource.language.I18n;
 import java.util.*;
 import java.util.HashMap;
@@ -184,6 +186,16 @@ public class FishStatsScreen extends Screen {
 
     // ── Brand "powered by" ────────────────────────────────────────────────────
     private int brandX, brandY, brandW;
+
+    // ── Hall of Fame – bouton coffee dans la section owner ────────────────────
+    private int hofCoffeeX, hofCoffeeY;
+    private static final int HOF_COFFEE_SIZE = 14;
+
+
+    // ── Hall of Fame – command blocks des placeholders podium (0-2=montant, 3-5=temps)
+    private final int[] hofSlotCmdX = new int[6];
+    private final int[] hofSlotCmdY = new int[6];
+    private final boolean[] hofSlotIsPlaceholder = new boolean[6];
 
     // ── Échelle logarithmique pour SIZES ──────────────────────────────────────
     private boolean sizesLogScale = false;
@@ -572,20 +584,49 @@ public class FishStatsScreen extends Screen {
             baitToggleBtnX + BAIT_TOGGLE_W / 2, baitToggleBtnY + 5,
             baitMode ? ModColors.TEXT_PRICE : ModColors.BTN_TEXT_NORMAL);
 
-        Tab[] tabs = Tab.values();
-        String hofLbl = I18n.translate("fishlog.tab.hall_of_fame");
+        Tab[] tabs = Arrays.stream(Tab.values()).filter(t -> t != Tab.HALL_OF_FAME).toArray(Tab[]::new);
         String[] lbl = baitMode
-            ? new String[]{I18n.translate("fishlog.tab.types"), I18n.translate("fishlog.tab.top"), "—", I18n.translate("fishlog.tab.hourly"), I18n.translate("fishlog.tab.cumul"), I18n.translate("fishlog.tab.records"), hofLbl}
-            : new String[]{I18n.translate("fishlog.tab.rarity"), I18n.translate("fishlog.tab.top"), I18n.translate("fishlog.tab.sizes"), I18n.translate("fishlog.tab.hourly"), I18n.translate("fishlog.tab.cumul"), I18n.translate("fishlog.tab.records"), hofLbl};
+            ? new String[]{I18n.translate("fishlog.tab.types"), I18n.translate("fishlog.tab.top"), "—", I18n.translate("fishlog.tab.hourly"), I18n.translate("fishlog.tab.cumul"), I18n.translate("fishlog.tab.records")}
+            : new String[]{I18n.translate("fishlog.tab.rarity"), I18n.translate("fishlog.tab.top"), I18n.translate("fishlog.tab.sizes"), I18n.translate("fishlog.tab.hourly"), I18n.translate("fishlog.tab.cumul"), I18n.translate("fishlog.tab.records")};
         int tabsW = w - BAIT_TOGGLE_W - 2;
         int tw = tabsW / tabs.length;
+        long now = System.currentTimeMillis();
         for (int i = 0; i < tabs.length; i++) {
             int tx = x + i * tw;
             boolean active   = tabs[i] == activeTab;
             boolean disabled = baitMode && tabs[i] == Tab.SIZES && tabs[i] != Tab.HALL_OF_FAME;
-            ctx.fill(tx, y, tx + tw, y + 20, disabled ? ModColors.TAB_DISABLED : active ? ModColors.TAB_ACTIVE : ModColors.TAB_INACTIVE);
-            ctx.drawCenteredTextWithShadow(textRenderer, lbl[i], tx + tw/2, y + 6,
-                disabled ? ModColors.TAB_TEXT_DISABLED : active ? ModColors.TEXT_WHITE : ModColors.TEXT_MUTED);
+            boolean isHof    = tabs[i] == Tab.HALL_OF_FAME;
+
+            if (isHof) {
+                // Fond arc-en-ciel pixel par pixel sur le contour (1px)
+                ctx.fill(tx, y, tx + tw, y + 20, active ? ModColors.TAB_ACTIVE : ModColors.TAB_INACTIVE);
+                // Bordure arc-en-ciel : top + bottom + left + right
+                for (int px = 0; px < tw; px++) {
+                    float hTop = ((now / 40 + px * 3) % 360) / 360f;
+                    float hBot = ((now / 40 + px * 3 + 180) % 360) / 360f;
+                    ctx.fill(tx + px, y,      tx + px + 1, y + 1,      hueToRgb(hTop, 1f));
+                    ctx.fill(tx + px, y + 19, tx + px + 1, y + 20,     hueToRgb(hBot, 1f));
+                }
+                ctx.fill(tx,          y, tx + 1,      y + 20, hueToRgb(((now / 40) % 360) / 360f, 1f));
+                ctx.fill(tx + tw - 1, y, tx + tw,     y + 20, hueToRgb(((now / 40 + 180) % 360) / 360f, 1f));
+
+                // Texte arc-en-ciel lettre par lettre
+                String label = lbl[i];
+                int labelW   = textRenderer.getWidth(label);
+                int startX   = tx + tw / 2 - labelW / 2;
+                int charX2   = startX;
+                for (int ci = 0; ci < label.length(); ci++) {
+                    String ch  = String.valueOf(label.charAt(ci));
+                    float hue  = ((now / 40 + ci * 20) % 360) / 360f;
+                    float bri  = active ? 1.0f : 0.75f;
+                    ctx.drawTextWithShadow(textRenderer, ch, charX2, y + 6, hueToRgb(hue, bri));
+                    charX2 += textRenderer.getWidth(ch);
+                }
+            } else {
+                ctx.fill(tx, y, tx + tw, y + 20, disabled ? ModColors.TAB_DISABLED : active ? ModColors.TAB_ACTIVE : ModColors.TAB_INACTIVE);
+                ctx.drawCenteredTextWithShadow(textRenderer, lbl[i], tx + tw/2, y + 6,
+                    disabled ? ModColors.TAB_TEXT_DISABLED : active ? ModColors.TEXT_WHITE : ModColors.TEXT_MUTED);
+            }
         }
     }
 
@@ -1743,80 +1784,272 @@ public class FishStatsScreen extends Screen {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
-    //  HALL OF FAME – liste des donateurs
+    //  HALL OF FAME – section owner + podium + liste
     // ═════════════════════════════════════════════════════════════════════════
-    private static final int HOF_ROW_H = 14;
+    private static final int HOF_ROW_H    = 13;
+    private static final int HOF_BORDER   = 2;
+    private static final int HOF_OWNER_H  = 62;  // label + tête + nom/icône
+    private static final int HOF_PODIUM_H = 72;  // 3 places avec têtes
     private static final DateTimeFormatter HOF_DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private static final int HOF_COLOR_GOLD   = 0xFFFFD700;
-    private static final int HOF_COLOR_SILVER = 0xFFC0C0C0;
-    private static final int HOF_COLOR_BRONZE = 0xFFCD7F32;
+    private static final int HOF_GOLD   = 0xFFFFD700;
+    private static final int HOF_SILVER = 0xFFC0C0C0;
+    private static final int HOF_BRONZE = 0xFFCD7F32;
+
+    private void triggerHofPrefetch() {
+        List<String> names = Stream.concat(
+            Stream.of("LeLeoOriginel"),
+            Stream.concat(
+                DonationStore.INSTANCE.getDonations().stream().limit(3).map(d -> d.player),
+                DonationStore.INSTANCE.getDonationsByDate().stream().limit(3).map(d -> d.player)
+            )
+        ).distinct().collect(Collectors.toList());
+        DonationHeadCache.prefetch(names);
+    }
+
+    private void renderRainbowBorder(DrawContext ctx, int x, int y, int w, int h, int thick) {
+        long now = System.currentTimeMillis();
+        int perimeter = 2 * (w + h);
+        // Dessiner chaque épaisseur depuis l'extérieur vers l'intérieur
+        for (int t = 0; t < thick; t++) {
+            int bx = x + t, by = y + t, bw = w - 2 * t, bh = h - 2 * t;
+            // top
+            for (int i = 0; i < bw; i++) {
+                int pos = i + t * (w + h) / thick;
+                float hue = ((now / 40 + pos * 2) % 360) / 360f;
+                ctx.fill(bx + i, by, bx + i + 1, by + 1, hueToRgb(hue, 1.0f));
+            }
+            // right
+            for (int i = 0; i < bh; i++) {
+                int pos = bw + i + t * (w + h) / thick;
+                float hue = ((now / 40 + pos * 2) % 360) / 360f;
+                ctx.fill(bx + bw - 1, by + i, bx + bw, by + i + 1, hueToRgb(hue, 1.0f));
+            }
+            // bottom
+            for (int i = bw - 1; i >= 0; i--) {
+                int pos = bw + bh + (bw - 1 - i) + t * (w + h) / thick;
+                float hue = ((now / 40 + pos * 2) % 360) / 360f;
+                ctx.fill(bx + i, by + bh - 1, bx + i + 1, by + bh, hueToRgb(hue, 1.0f));
+            }
+            // left
+            for (int i = bh - 1; i >= 0; i--) {
+                int pos = 2 * bw + bh + (bh - 1 - i) + t * (w + h) / thick;
+                float hue = ((now / 40 + pos * 2) % 360) / 360f;
+                ctx.fill(bx, by + i, bx + 1, by + i + 1, hueToRgb(hue, 1.0f));
+            }
+        }
+    }
 
     private void renderHallOfFame(DrawContext ctx, int x, int y, int w, int h) {
         List<DonationData> donations = DonationStore.INSTANCE.getDonations();
 
+        // Prefetch au premier rendu si pas encore fait
+        triggerHofPrefetch();
+
         int footerH = 12;
-        int hdrH    = HOF_ROW_H;
-        int listTop = y + hdrH;
-        int listH   = h - footerH - hdrH - 2;
-        int totalPx = donations.size() * HOF_ROW_H;
+        int innerX  = x + HOF_BORDER;
+        int innerY  = y + HOF_BORDER;
+        int innerW  = w - 2 * HOF_BORDER;
+        int innerH  = h - 2 * HOF_BORDER;
+        int cx      = x + w / 2;
+        long now    = System.currentTimeMillis();
 
-        // En-tête
-        ctx.fill(x, y, x + w, listTop, ModColors.UI_HEADER_BG);
-        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.hof.col.rank"),   x + 4,      y + 3, ModColors.TEXT_HEADER_COL);
-        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.hof.col.player"), x + 28,     y + 3, ModColors.TEXT_HEADER_COL);
-        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.hof.col.amount"), x + w - 96, y + 3, ModColors.TEXT_HEADER_COL);
-        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.hof.col.date"),   x + w - 56, y + 3, ModColors.TEXT_HEADER_COL);
+        // ── Fond + bordure arc-en-ciel ────────────────────────────────────────
+        renderRainbowBorder(ctx, x, y, w, h, HOF_BORDER);
 
-        if (donations.isEmpty()) {
-            ctx.drawCenteredTextWithShadow(textRenderer,
-                I18n.translate("fishlog.hof.empty"),
-                x + w / 2, listTop + listH / 2, ModColors.TEXT_MUTED);
-        } else {
-            // Lignes (clippées dans la zone liste)
-            int rowY = listTop - hofScrollOffset;
-            for (int i = 0; i < donations.size(); i++) {
-                if (rowY + HOF_ROW_H <= listTop) { rowY += HOF_ROW_H; continue; }
-                if (rowY >= listTop + listH) break;
+        // ── Section Owner ─────────────────────────────────────────────────────
+        int ownerY = innerY + 4;
 
-                DonationData d = donations.get(i);
-                int rank = i + 1;
+        // "Owner :" en rouge
+        String ownerLabel = "Owner :";
+        ctx.drawCenteredTextWithShadow(textRenderer, ownerLabel,
+            cx, ownerY, 0xFFFF4444);
+        ownerY += 10;
 
-                ctx.fill(x, rowY, x + w - 6, rowY + HOF_ROW_H,
-                    i % 2 == 0 ? ModColors.ROW_EVEN : ModColors.ROW_ODD);
+        // Tête du owner (24×24)
+        int headSize = 24;
+        int headX = cx - headSize / 2;
+        Optional<ItemStack> ownerHead = DonationHeadCache.get("LeLeoOriginel");
+        ItemStack ownerStack = (ownerHead != null && ownerHead.isPresent())
+            ? ownerHead.get()
+            : new ItemStack(Items.PLAYER_HEAD);
+        renderScaledItem(ctx, ownerStack, headX, ownerY, headSize);
+        ownerY += headSize + 4;
 
-                int medalColor = switch (rank) {
-                    case 1 -> HOF_COLOR_GOLD;
-                    case 2 -> HOF_COLOR_SILVER;
-                    case 3 -> HOF_COLOR_BRONZE;
-                    default -> ModColors.TEXT_MUTED;
-                };
-                String rankStr = rank <= 3 ? (rank == 1 ? "★" : rank == 2 ? "✦" : "✧") : String.valueOf(rank);
-                ctx.drawTextWithShadow(textRenderer, rankStr, x + 4, rowY + 3, medalColor);
-
-                ctx.drawTextWithShadow(textRenderer, d.player, x + 28, rowY + 3,
-                    rank == 1 ? ModColors.TEXT_PRICE : ModColors.TEXT_WHITE);
-
-                String amtStr = String.format("✧%.2f", d.amount);
-                ctx.drawTextWithShadow(textRenderer, amtStr, x + w - 96, rowY + 3, ModColors.TEXT_PRICE);
-
-                String dateStr = d.date.format(HOF_DATE_FMT);
-                ctx.drawTextWithShadow(textRenderer, dateStr, x + w - 56, rowY + 3, ModColors.TEXT_MUTED);
-
-                rowY += HOF_ROW_H;
-            }
-
-            renderScrollbar(ctx, SB_HOF, x + w - 5, listTop, listH, hofScrollOffset, totalPx, listH);
+        // "LeLeoOriginel" en arc-en-ciel
+        String ownerName = "LeLeoOriginel";
+        int nameW = textRenderer.getWidth(ownerName);
+        int totalW = nameW + 2 + HOF_COFFEE_SIZE;
+        int nameStartX = cx - totalW / 2;
+        int nameY = ownerY;
+        int charX = nameStartX;
+        for (int ci = 0; ci < ownerName.length(); ci++) {
+            String ch = String.valueOf(ownerName.charAt(ci));
+            float hue = ((now / 40 + ci * 18) % 360) / 360f;
+            float bri = 0.65f + 0.35f * (float) Math.sin(now / 250.0 + ci * 0.4);
+            ctx.drawTextWithShadow(textRenderer, ch, charX, nameY, hueToRgb(hue, bri));
+            charX += textRenderer.getWidth(ch);
         }
 
-        // Footer
+        // Icône Command Block cliquable
+        hofCoffeeX = nameStartX + nameW + 2;
+        hofCoffeeY = nameY - 2;
+        ItemStack cmdBlock = new ItemStack(net.minecraft.block.Blocks.COMMAND_BLOCK.asItem());
+        renderScaledItem(ctx, cmdBlock, hofCoffeeX, hofCoffeeY, HOF_COFFEE_SIZE);
+        if (lastMx >= hofCoffeeX && lastMx < hofCoffeeX + HOF_COFFEE_SIZE
+                && lastMy >= hofCoffeeY && lastMy < hofCoffeeY + HOF_COFFEE_SIZE) {
+            pendingTooltip = List.of(Text.literal("Buy me a coffee !"));
+        }
+
+        // Ligne séparatrice
+        int sepY = innerY + HOF_OWNER_H;
+        ctx.fill(innerX + 10, sepY, innerX + innerW - 10, sepY + 1, ModColors.UI_DIVIDER);
+
+        // ── Deux podiums côte-à-côte : montant (gauche) / ancienneté (droite) ─
+        int halfW      = innerW / 2;
+        int lcx        = innerX + halfW / 2;
+        int rcx        = innerX + halfW + halfW / 2;
+        int slotW      = Math.min(36, Math.max(20, (halfW - 12) / 3));
+        int gap        = Math.max(2, (halfW - 3 * slotW) / 4);
+        int slot1stH   = 22;
+        int headSizeLg = Math.min(18, slotW - 2);
+        int headSizeSm = Math.min(14, slotW - 6);
+        int podiumTop  = sepY + 5;
+        int podiumBase = podiumTop + HOF_PODIUM_H - 20;
+
+        // Séparateur vertical
+        ctx.fill(innerX + halfW, sepY + 2, innerX + halfW + 1, podiumTop + HOF_PODIUM_H - 8, ModColors.UI_DIVIDER);
+
+        // Labels des deux catégories
+        ctx.drawCenteredTextWithShadow(textRenderer,
+            "✧ " + I18n.translate("fishlog.hof.podium.amount"), lcx, sepY + 3, HOF_GOLD);
+        ctx.drawCenteredTextWithShadow(textRenderer,
+            "⏱ " + I18n.translate("fishlog.hof.podium.time"), rcx, sepY + 3, 0xFF88CCFF);
+
+        // Podium montant (gauche)
+        DonationData d1 = donations.size() >= 1 ? donations.get(0) : null;
+        DonationData d2 = donations.size() >= 2 ? donations.get(1) : null;
+        DonationData d3 = donations.size() >= 3 ? donations.get(2) : null;
+        int lPos1X = lcx - slotW / 2;
+        int lPos2X = lPos1X - slotW - gap;
+        int lPos3X = lPos1X + slotW + gap;
+        renderPodiumSlot(ctx, d1, 0, 1, lPos1X, podiumBase - slot1stH, slotW, HOF_GOLD,   headSizeLg, now, false);
+        renderPodiumSlot(ctx, d2, 1, 2, lPos2X, podiumBase,            slotW, HOF_SILVER, headSizeSm, now, false);
+        renderPodiumSlot(ctx, d3, 2, 3, lPos3X, podiumBase,            slotW, HOF_BRONZE, headSizeSm, now, false);
+
+        // Podium ancienneté – premiers donateurs par date de première donation
+        List<DonationData> byDate = DonationStore.INSTANCE.getDonationsByDate();
+        DonationData t1 = byDate.size() >= 1 ? byDate.get(0) : null;
+        DonationData t2 = byDate.size() >= 2 ? byDate.get(1) : null;
+        DonationData t3 = byDate.size() >= 3 ? byDate.get(2) : null;
+        int rPos1X = rcx - slotW / 2;
+        int rPos2X = rPos1X - slotW - gap;
+        int rPos3X = rPos1X + slotW + gap;
+        renderPodiumSlot(ctx, t1, 3, 1, rPos1X, podiumBase - slot1stH, slotW, HOF_GOLD,   headSizeLg, now, true);
+        renderPodiumSlot(ctx, t2, 4, 2, rPos2X, podiumBase,            slotW, HOF_SILVER, headSizeSm, now, true);
+        renderPodiumSlot(ctx, t3, 5, 3, rPos3X, podiumBase,            slotW, HOF_BRONZE, headSizeSm, now, true);
+
+        // ── Liste donateurs 4+ (toujours visible) ────────────────────────────
+        int listTop  = sepY + HOF_PODIUM_H + 32;
+        int listH    = h - (listTop - y) - footerH - 2;
+        // Colonnes : marge droite 8px (scrollbar 5 + padding 3)
+        int colDate   = innerX + innerW - 8 - 50;   // ~50px pour "18/06/2026"
+        int colAmt    = colDate - 4 - 52;            // ~52px pour "✧1 000.00"
+        if (listH > 0) {
+            ctx.fill(innerX, listTop, innerX + innerW, listTop + HOF_ROW_H, ModColors.UI_HEADER_BG);
+            ctx.drawTextWithShadow(textRenderer, "#",                                      innerX + 3,  listTop + 3, ModColors.TEXT_HEADER_COL);
+            ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.hof.col.player"), innerX + 18, listTop + 3, ModColors.TEXT_HEADER_COL);
+            ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.hof.col.amount"), colAmt,      listTop + 3, ModColors.TEXT_HEADER_COL);
+            ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.hof.col.date"),   colDate,     listTop + 3, ModColors.TEXT_HEADER_COL);
+            listTop += HOF_ROW_H;
+
+            int listCount = Math.max(0, donations.size() - 3);
+            int totalPx   = listCount * HOF_ROW_H;
+            int rowY      = listTop - hofScrollOffset;
+            for (int i = 3; i < donations.size(); i++) {
+                if (rowY + HOF_ROW_H <= listTop) { rowY += HOF_ROW_H; continue; }
+                if (rowY >= listTop + listH) break;
+                DonationData d = donations.get(i);
+                int rank = i + 1;
+                ctx.fill(innerX, rowY, innerX + innerW - 6, rowY + HOF_ROW_H,
+                    i % 2 == 0 ? ModColors.ROW_EVEN : ModColors.ROW_ODD);
+                ctx.drawTextWithShadow(textRenderer, String.valueOf(rank), innerX + 3,  rowY + 3, ModColors.TEXT_MUTED);
+                ctx.drawTextWithShadow(textRenderer, d.player,             innerX + 18, rowY + 3, ModColors.TEXT_WHITE);
+                ctx.drawTextWithShadow(textRenderer, String.format("✧%.2f", d.amount), colAmt,  rowY + 3, ModColors.TEXT_PRICE);
+                ctx.drawTextWithShadow(textRenderer, d.date.format(HOF_DATE_FMT),      colDate, rowY + 3, ModColors.TEXT_MUTED);
+                rowY += HOF_ROW_H;
+            }
+            if (listCount > 0) {
+                renderScrollbar(ctx, SB_HOF, innerX + innerW - 5, listTop, listH, hofScrollOffset, totalPx, listH);
+            }
+        }
+
+        // ── Footer ────────────────────────────────────────────────────────────
         int fy = y + h - footerH;
-        ctx.fill(x, fy, x + w, y + h, ModColors.UI_FOOTER_BG);
-        ctx.fill(x, fy, x + w, fy + 1, ModColors.UI_FOOTER_LINE);
+        ctx.fill(innerX, fy, innerX + innerW, y + h - HOF_BORDER, ModColors.UI_FOOTER_BG);
+        ctx.fill(innerX, fy, innerX + innerW, fy + 1, ModColors.UI_FOOTER_LINE);
         int n = donations.size();
         String footer = n <= 1
             ? I18n.translate("fishlog.hof.footer", n)
             : I18n.translate("fishlog.hof.footer.plural", n);
-        ctx.drawCenteredTextWithShadow(textRenderer, footer, x + w / 2, fy + 2, ModColors.TEXT_MUTED);
+        ctx.drawCenteredTextWithShadow(textRenderer, footer, cx, fy + 2, ModColors.TEXT_MUTED);
+
+    }
+
+    private static final ItemStack STEVE_HEAD = new ItemStack(Items.PLAYER_HEAD);
+
+    // slotIdx 0-2 = podium montant, 3-5 = podium ancienneté
+    private void renderPodiumSlot(DrawContext ctx, DonationData d, int slotIdx, int rank,
+                                   int x, int y, int slotW, int nameColor, int headSize, long now,
+                                   boolean showDate) {
+        int cx = x + slotW / 2;
+
+        if (d == null) {
+            // ── Placeholder ───────────────────────────────────────────────────
+            hofSlotIsPlaceholder[slotIdx] = true;
+
+            // Tête Steve (grisée / semi-transparente via alpha)
+            renderScaledItem(ctx, STEVE_HEAD, cx - headSize / 2, y, headSize);
+
+            // Médaille tronquée
+            String medal = rank == 1 ? "★" : rank == 2 ? "✦" : "✧";
+            ctx.drawTextWithShadow(textRenderer, medal, cx + headSize / 2 - 4, y - 1, 0xFF555555);
+
+            // "Be The Next"
+            ctx.drawCenteredTextWithShadow(textRenderer, "Be The Next", cx, y + headSize + 2, ModColors.TEXT_MUTED);
+
+            // Command block cliquable
+            int iconSize = HOF_COFFEE_SIZE;
+            int iconX = cx - iconSize / 2;
+            int iconY = y + headSize + 12;
+            hofSlotCmdX[slotIdx] = iconX;
+            hofSlotCmdY[slotIdx] = iconY;
+            ItemStack cmd = new ItemStack(net.minecraft.block.Blocks.COMMAND_BLOCK.asItem());
+            renderScaledItem(ctx, cmd, iconX, iconY, iconSize);
+
+            if (lastMx >= iconX && lastMx < iconX + iconSize
+                    && lastMy >= iconY && lastMy < iconY + iconSize) {
+                pendingTooltip = List.of(Text.literal("and choose an hover text"));
+            }
+        } else {
+            // ── Slot réel ─────────────────────────────────────────────────────
+            hofSlotIsPlaceholder[slotIdx] = false;
+
+            Optional<ItemStack> head = DonationHeadCache.get(d.player);
+            ItemStack stack = (head != null && head.isPresent()) ? head.get() : STEVE_HEAD;
+            renderScaledItem(ctx, stack, cx - headSize / 2, y, headSize);
+
+            String medal = rank == 1 ? "★" : rank == 2 ? "✦" : "✧";
+            ctx.drawTextWithShadow(textRenderer, medal, cx + headSize / 2 - 4, y - 1, nameColor);
+
+            String name = d.player.length() > 9 ? d.player.substring(0, 8) + "." : d.player;
+            ctx.drawCenteredTextWithShadow(textRenderer, name, cx, y + headSize + 2, nameColor);
+
+            String subline = showDate
+                ? d.date.format(HOF_DATE_FMT)
+                : String.format("✧%.2f", d.amount);
+            int subColor = showDate ? ModColors.TEXT_MUTED : ModColors.TEXT_PRICE;
+            ctx.drawCenteredTextWithShadow(textRenderer, subline, cx, y + headSize + 11, subColor);
+        }
     }
 
 
@@ -1854,6 +2087,24 @@ public class FishStatsScreen extends Screen {
         if (button == 0 && mx >= brandX && mx < brandX + brandW && my >= brandY && my < brandY + 9) {
             client.setScreen(new net.minecraft.client.gui.screen.ChatScreen("/pay LeLeoOriginel 1000"));
             return true;
+        }
+        // Hall of Fame – bouton coffee (command block) dans la section owner
+        if (button == 0 && activeTab == Tab.HALL_OF_FAME
+                && mx >= hofCoffeeX && mx < hofCoffeeX + HOF_COFFEE_SIZE
+                && my >= hofCoffeeY && my < hofCoffeeY + HOF_COFFEE_SIZE) {
+            client.setScreen(new net.minecraft.client.gui.screen.ChatScreen("/pay LeLeoOriginel 1000"));
+            return true;
+        }
+        // Hall of Fame – command blocks des placeholders podium
+        if (button == 0 && activeTab == Tab.HALL_OF_FAME) {
+            for (int i = 0; i < 6; i++) {
+                if (hofSlotIsPlaceholder[i]
+                        && mx >= hofSlotCmdX[i] && mx < hofSlotCmdX[i] + HOF_COFFEE_SIZE
+                        && my >= hofSlotCmdY[i] && my < hofSlotCmdY[i] + HOF_COFFEE_SIZE) {
+                    client.setScreen(new net.minecraft.client.gui.screen.ChatScreen("/and choose a command"));
+                    return true;
+                }
+            }
         }
         // Scrollbars cliquables
         if (button == 0) {
@@ -1929,7 +2180,7 @@ public class FishStatsScreen extends Screen {
             }
         }
 
-        Tab[] tabs = Tab.values();
+        Tab[] tabs = Arrays.stream(Tab.values()).filter(t -> t != Tab.HALL_OF_FAME).toArray(Tab[]::new);
         int areaX  = 10;
         int tabsW  = (width - 20) - BAIT_TOGGLE_W - 2;
         int tw     = tabsW / tabs.length;
@@ -1945,6 +2196,7 @@ public class FishStatsScreen extends Screen {
                     if (topSearchField != null) { topSearchField.setText(""); updateTopFiltered(); }
                     if (activeTab == Tab.RECORDS && searchField != null) setFocused(searchField);
                     if (activeTab == Tab.TOP && !baitMode && topSearchField != null) setFocused(topSearchField);
+                    if (activeTab == Tab.HALL_OF_FAME) triggerHofPrefetch();
                 }
             }
             return true;
