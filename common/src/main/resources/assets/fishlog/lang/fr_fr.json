@@ -1,0 +1,97 @@
+{
+  "key.fishlog.stats": "Ouvrir Fish Stats",
+  "category.fishlog": "FishLog",
+
+  "fishlog.toggle.fish": "Poissons",
+  "fishlog.toggle.bait": "Appâts",
+
+  "fishlog.tab.rarity":  "Raretés",
+  "fishlog.tab.top":     "Top",
+  "fishlog.tab.sizes":   "Tailles",
+  "fishlog.tab.hourly":  "Horaire",
+  "fishlog.tab.cumul":   "Cumul",
+  "fishlog.tab.records": "Records",
+  "fishlog.tab.types":   "Types",
+
+  "fishlog.empty.fish":    "Aucune donnée",
+  "fishlog.empty.bait":    "Aucun appât capturé",
+  "fishlog.empty.na_bait": "Non applicable aux appâts",
+  "fishlog.empty.nodata":  "Pas assez de données",
+
+  "fishlog.col.rarity":       "Rareté",
+  "fishlog.col.distribution": "Répartition",
+  "fishlog.col.date":  "Date",
+  "fishlog.col.fish":  "Poisson",
+  "fishlog.col.size":  "Taille",
+  "fishlog.col.price": "Prix",
+  "fishlog.col.bait":  "Appât",
+
+  "fishlog.catch":        "%d prise",
+  "fishlog.catch.plural": "%d prises",
+  "fishlog.elapsed":      "il y a %s",
+
+  "fishlog.footer.rarity":        "Total : %d prise  —  molette pour défiler",
+  "fishlog.footer.rarity.plural": "Total : %d prises  —  molette pour défiler",
+
+  "fishlog.top.by_count": "Par quantité",
+  "fishlog.top.by_value": "Par valeur",
+  "fishlog.top.catches":  "%d pêches",
+
+  "fishlog.footer.top":        "%d espèce  —  molette pour défiler",
+  "fishlog.footer.top.plural": "%d espèces  —  molette pour défiler",
+
+  "fishlog.hourly.label":   "Heure",
+  "fishlog.hourly.tooltip": "%d pêches à %dh",
+  "fishlog.daily.title":    "Poissons / jour",
+  "fishlog.daily.tooltip":  "%d pêches le %s",
+
+  "fishlog.cumul.footer":        "Total : %.0f$  |  %d prise",
+  "fishlog.cumul.footer.plural": "Total : %.0f$  |  %d prises",
+  "fishlog.cumul.tooltip":       "%s  —  %d$",
+
+  "fishlog.footer.records":        "%d entrée  —  molette pour défiler",
+  "fishlog.footer.records.plural": "%d entrées  —  molette pour défiler",
+  "fishlog.footer.filtered":       "%d / %d résultats",
+
+  "fishlog.bait.total":        "Total : %d appât",
+  "fishlog.bait.total.plural": "Total : %d appâts",
+
+  "fishlog.bait.top.by_recency": "Par récence",
+
+  "fishlog.footer.bait_top":        "%d type  —  molette pour défiler",
+  "fishlog.footer.bait_top.plural": "%d types  —  molette pour défiler",
+
+  "fishlog.bait.hourly.tooltip": "%d appâts à %dh",
+  "fishlog.bait.daily.title":    "Appâts / jour",
+  "fishlog.bait.daily.tooltip":  "%d appâts le %s",
+
+  "fishlog.bait.cumul.footer":        "Total : %.0f appât",
+  "fishlog.bait.cumul.footer.plural": "Total : %.0f appâts",
+
+  "fishlog.time.s":  "%ds",
+  "fishlog.time.ms": "%dm %ds",
+  "fishlog.time.hm": "%dh %dm",
+  "fishlog.time.dh": "%dj %dh",
+
+  "fishlog.sizes.tooltip.max":    "Taille max : %s : %.1f cm",
+  "fishlog.sizes.tooltip.min":    "Taille min : %s : %.1f cm",
+  "fishlog.sizes.tooltip.q1":     "1er quartile : %.1f cm",
+  "fishlog.sizes.tooltip.median": "Médiane : %.1f cm",
+  "fishlog.sizes.tooltip.q3":     "3ème quartile : %.1f cm",
+
+  "fishlog.favorite.add":    "Ajouter aux favoris",
+  "fishlog.favorite.remove": "Retirer des favoris",
+
+  "fishlog.tab.hall_of_fame": "Hall of Fame",
+
+  "fishlog.hof.empty":            "Aucun donateur encore — merci d'avance !",
+  "fishlog.hof.col.rank":         "#",
+  "fishlog.hof.col.player":       "Joueur",
+  "fishlog.hof.col.amount":       "Don",
+  "fishlog.hof.col.date":         "Date",
+  "fishlog.hof.footer":           "%d donateur",
+  "fishlog.hof.footer.plural":    "%d donateurs",
+
+  "fishlog.hof.podium.amount": "Top Donateurs",
+  "fishlog.hof.podium.time":   "Ancienneté"
+}

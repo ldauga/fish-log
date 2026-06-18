@@ -1,0 +1,9 @@
+// Pure-Java module: shared data stores, models, and logger.
+// No Minecraft API — sources are included by each platform via srcDir.
+group   = project.maven_group
+version = project.mod_version
+
+dependencies {
+    // SLF4J is provided at runtime by all platforms (Fabric/NeoForge/Forge via Minecraft)
+    compileOnly 'org.slf4j:slf4j-api:2.0.7'
+}

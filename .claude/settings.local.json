@@ -7,7 +7,9 @@
       "WebFetch(domain:serveur-minecraft.com)",
       "WebFetch(domain:serveur-prive.net)",
       "Read(//c/Users/user/curseforge/minecraft/Instances/**)",
-      "Read(//c/Users/user/AppData/Local/curseforge/minecraft/**)"
+      "Read(//c/Users/user/AppData/Local/curseforge/minecraft/**)",
+      "PowerShell(Invoke-RestMethod 'https://maven.neoforged.net/releases/net/neoforged/gradle/userdev/maven-metadata.xml' | Select-Object -ExpandProperty metadata | ForEach-Object { $_.versioning.versions.version } | Select-Object -Last 20)",
+      "PowerShell(Add-Type -AssemblyName System.IO.Compression.FileSystem; $jar = [System.IO.Compression.ZipFile]::OpenRead\\(\"$env:USERPROFILE\\\\.gradle\\\\caches\\\\modules-2\\\\files-2.1\\\\net.minecraftforge.gradle\\\\ForgeGradle\\\\6.0.54\\\\abfc5f1f905524349236e01ee686f7359a5dbd4e\\\\ForgeGradle-6.0.54.jar\"\\); $entry = $jar.Entries | Where-Object { $_.FullName -eq \"net/minecraftforge/gradle/common/util/runs/RunConfigGenerator.class\" }; $jar.Dispose\\(\\); \"Found: \" + \\($entry -ne $null\\))"
     ]
   }
 }

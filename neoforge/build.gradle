@@ -1,0 +1,40 @@
+plugins {
+    id 'net.neoforged.gradle.userdev' version "${neogradle_version}"
+}
+
+group   = project.maven_group
+version = project.mod_version
+
+base { archivesName = "${archives_base_name}-neoforge" }
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+// Include pure-Java sources (common) and shared mojmaps MC sources (mccommon)
+sourceSets {
+    main {
+        java {
+            srcDir project(':common').file('src/main/java')
+            srcDir rootProject.file('mccommon/src/main/java')
+        }
+        resources {
+            srcDir project(':common').file('src/main/resources')
+        }
+    }
+}
+
+runs {
+    client {
+        modSources sourceSets.main
+    }
+}
+
+dependencies {
+    implementation "net.neoforged:neoforge:${neoforge_version}"
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand version: project.version
+    }
+}

@@ -1,0 +1,77 @@
+buildscript {
+    repositories {
+        maven { url 'https://maven.minecraftforge.net' }
+        mavenCentral()
+    }
+    dependencies {
+        classpath "net.minecraftforge.gradle:ForgeGradle:${forgegradle_version}"
+    }
+}
+
+apply plugin: 'net.minecraftforge.gradle'
+apply plugin: 'java'
+
+group   = project.maven_group
+version = project.mod_version
+
+base { archivesName = "${archives_base_name}-forge" }
+
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+minecraft {
+    mappings channel: 'official', version: "${minecraft_version}"
+    runs {
+        client {
+            workingDirectory project.file('run')
+            mods {
+                fishlog {
+                    source sourceSets.main
+                }
+            }
+        }
+    }
+}
+
+
+// Include pure-Java sources (common) and shared mojmaps MC sources (mccommon)
+sourceSets {
+    main {
+        java {
+            srcDir project(':common').file('src/main/java')
+            srcDir rootProject.file('mccommon/src/main/java')
+        }
+        resources {
+            srcDir project(':common').file('src/main/resources')
+        }
+    }
+}
+
+// Forge's dev-mode scanner expects mods.toml alongside @Mod classes in the same classpath entry.
+// ForgeGradle 6.x adds resourcesDir to fml.mods.dirs but scans it for classes — merging them fixes this.
+sourceSets.main.output.resourcesDir = file("$buildDir/classes/java/main")
+
+dependencies {
+    minecraft "net.minecraftforge:forge:${forge_version}"
+}
+
+processResources {
+    inputs.property 'version', project.version
+    filesMatching('META-INF/mods.toml') {
+        expand version: project.version
+    }
+}
+
+jar {
+    manifest {
+        attributes([
+            "Specification-Title"   : "fishlog",
+            "Specification-Version" : "1",
+            "Implementation-Title"  : project.name,
+            "Implementation-Version": project.version
+        ])
+    }
+}
