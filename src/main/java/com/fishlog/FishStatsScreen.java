@@ -572,7 +572,7 @@ public class FishStatsScreen extends Screen {
     private void renderRarity(DrawContext ctx, int x, int y, int w, int h) {
         if (rarityEntries.isEmpty()) return;
         int total  = rarityEntries.stream().mapToInt(Map.Entry::getValue).sum();
-        int maxCnt = rarityEntries.get(0).getValue();
+        int maxCnt = rarityEntries.stream().mapToInt(Map.Entry::getValue).max().orElse(1);
 
         // ── Bande cumulée ───────────────────────────────────────────────────
         int bandH = 14;
