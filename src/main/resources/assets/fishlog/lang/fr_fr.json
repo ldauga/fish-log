@@ -80,5 +80,15 @@
   "fishlog.sizes.tooltip.q3":     "3ème quartile : %.1f cm",
 
   "fishlog.favorite.add":    "Ajouter aux favoris",
-  "fishlog.favorite.remove": "Retirer des favoris"
+  "fishlog.favorite.remove": "Retirer des favoris",
+
+  "fishlog.tab.hall_of_fame": "Hall of Fame",
+
+  "fishlog.hof.empty":            "Aucun donateur encore — merci d'avance !",
+  "fishlog.hof.col.rank":         "#",
+  "fishlog.hof.col.player":       "Joueur",
+  "fishlog.hof.col.amount":       "Don",
+  "fishlog.hof.col.date":         "Date",
+  "fishlog.hof.footer":           "%d donateur",
+  "fishlog.hof.footer.plural":    "%d donateurs"
 }

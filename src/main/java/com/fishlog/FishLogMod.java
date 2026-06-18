@@ -24,8 +24,11 @@ public class FishLogMod implements ClientModInitializer {
 
     public static final Logger LOGGER = LoggerFactory.getLogger("fishlog");
 
-    private static final Pattern FISH_PATTERN = LogParser.FISH_PATTERN;
-    private static final Pattern BAIT_PATTERN = LogParser.BAIT_PATTERN;
+    private static final Pattern FISH_PATTERN     = LogParser.FISH_PATTERN;
+    private static final Pattern BAIT_PATTERN     = LogParser.BAIT_PATTERN;
+    private static final Pattern DONATION_PATTERN =
+        Pattern.compile("Vous avez payé LeLeoOriginel ✧(\\d+(?:[.,]\\d+)?)");
+
 
     private KeyBinding statsKey;
     private FishCsvLogger csvLogger;
@@ -68,6 +71,8 @@ public class FishLogMod implements ClientModInitializer {
 
             Path favPath = client.runDirectory.toPath().resolve("favorites.txt");
             FavoritesStore.INSTANCE.init(favPath);
+
+            DonationStore.INSTANCE.init(client.runDirectory.toPath());
 
             // Scanner les logs à chaque connexion pour importer les entrées manquantes
             if (client.player == null) return;
@@ -150,6 +155,21 @@ public class FishLogMod implements ClientModInitializer {
             if (baitCsvLogger == null) return;
             LOGGER.info("[FishLog] Appât : {} {}", bait, player);
             baitCsvLogger.log(player, bait);
+            return;
+        }
+
+        Matcher dm = DONATION_PATTERN.matcher(text);
+        if (dm.find()) {
+            MinecraftClient mc = MinecraftClient.getInstance();
+            if (mc == null || mc.player == null) return;
+            String player = mc.player.getGameProfile().getName();
+            double amount = Double.parseDouble(dm.group(1).replace(",", "."));
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            String encrypted = DonationCrypto.encrypt(player, amount, now);
+            if (encrypted != null) {
+                DonationStore.INSTANCE.saveReceipt(encrypted);
+                LOGGER.info("[FishLog] Don enregistré : {} → {}", player, amount);
+            }
         }
     }
 

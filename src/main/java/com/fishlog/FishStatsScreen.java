@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 public class FishStatsScreen extends Screen {
 
     // ── Onglets ──────────────────────────────────────────────────────────────
-    private enum Tab { RARITY, TOP, SIZES, HOURLY, CUMUL, RECORDS }
+    private enum Tab { RARITY, TOP, SIZES, HOURLY, CUMUL, RECORDS, HALL_OF_FAME }
     private Tab activeTab = Tab.RARITY;
 
     // ── Toggle Pêche / Appâts ─────────────────────────────────────────────────
@@ -131,7 +131,8 @@ public class FishStatsScreen extends Screen {
     private int baitScrollOffset      = 0;
     private int baitTopScrollOffset   = 0;
     private int rarityScrollOffset    = 0;
-    private int baitTypesScrollOffset = 0;
+    private int baitTypesScrollOffset   = 0;
+    private int hofScrollOffset         = 0;
     private static final int ROW_H    = 10;
     private static final int TOP_ROW_H = 12;
 
@@ -154,8 +155,9 @@ public class FishStatsScreen extends Screen {
     private static final int SB_BAIT_REC   = 2;
     private static final int SB_BAIT_TOP_L = 3;
     private static final int SB_BAIT_TOP_R = 4;
-    private static final int SB_BAIT_TYPES = 5;
-    private static final int SB_COUNT      = 6;
+    private static final int SB_BAIT_TYPES  = 5;
+    private static final int SB_HOF         = 6;
+    private static final int SB_COUNT       = 7;
     private final int[] sbX      = new int[SB_COUNT];
     private final int[] sbY      = new int[SB_COUNT];
     private final int[] sbTrackH = new int[SB_COUNT];
@@ -475,7 +477,9 @@ public class FishStatsScreen extends Screen {
 
         int cX = areaX + 5, cY = areaY + 22, cW = areaW - 10, cH = areaH - 27;
 
-        if (baitMode) {
+        if (activeTab == Tab.HALL_OF_FAME) {
+            renderHallOfFame(ctx, cX, cY, cW, cH);
+        } else if (baitMode) {
             if (allBaitRecords.isEmpty()) {
                 ctx.drawCenteredTextWithShadow(textRenderer, I18n.translate("fishlog.empty.bait"), cX + cW/2, cY + cH/2, ModColors.TEXT_WHITE);
                 return;
@@ -487,6 +491,7 @@ public class FishStatsScreen extends Screen {
                 case HOURLY  -> renderBaitHourly(ctx, cX, cY, cW, cH);
                 case CUMUL   -> renderBaitCumul(ctx, cX, cY, cW, cH);
                 case RECORDS -> renderBaitRecords(ctx, cX, cY, cW, cH);
+                default      -> { }
             }
         } else {
             if (records.isEmpty()) {
@@ -500,6 +505,7 @@ public class FishStatsScreen extends Screen {
                 case HOURLY  -> renderHourly(ctx, cX, cY, cW, cH);
                 case CUMUL   -> renderCumul(ctx, cX, cY, cW, cH);
                 case RECORDS -> renderRecords(ctx, cX, cY, cW, cH);
+                default      -> { }
             }
         }
 
@@ -520,7 +526,7 @@ public class FishStatsScreen extends Screen {
             int footerH = 12;
             int fy = cY + cH - footerH;
             // Onglets sans leur propre footer noir → on dessine le bandeau
-            boolean hasOwnFooter = activeTab == Tab.RARITY || activeTab == Tab.TOP || activeTab == Tab.RECORDS;
+            boolean hasOwnFooter = activeTab == Tab.RARITY || activeTab == Tab.TOP || activeTab == Tab.RECORDS || activeTab == Tab.HALL_OF_FAME;
             if (!hasOwnFooter) {
                 ctx.fill(cX, fy, cX + cW, cY + cH, ModColors.UI_FOOTER_BG);
                 ctx.fill(cX, fy, cX + cW, fy + 1, ModColors.UI_FOOTER_LINE);
@@ -567,15 +573,16 @@ public class FishStatsScreen extends Screen {
             baitMode ? ModColors.TEXT_PRICE : ModColors.BTN_TEXT_NORMAL);
 
         Tab[] tabs = Tab.values();
+        String hofLbl = I18n.translate("fishlog.tab.hall_of_fame");
         String[] lbl = baitMode
-            ? new String[]{I18n.translate("fishlog.tab.types"), I18n.translate("fishlog.tab.top"), "—", I18n.translate("fishlog.tab.hourly"), I18n.translate("fishlog.tab.cumul"), I18n.translate("fishlog.tab.records")}
-            : new String[]{I18n.translate("fishlog.tab.rarity"), I18n.translate("fishlog.tab.top"), I18n.translate("fishlog.tab.sizes"), I18n.translate("fishlog.tab.hourly"), I18n.translate("fishlog.tab.cumul"), I18n.translate("fishlog.tab.records")};
+            ? new String[]{I18n.translate("fishlog.tab.types"), I18n.translate("fishlog.tab.top"), "—", I18n.translate("fishlog.tab.hourly"), I18n.translate("fishlog.tab.cumul"), I18n.translate("fishlog.tab.records"), hofLbl}
+            : new String[]{I18n.translate("fishlog.tab.rarity"), I18n.translate("fishlog.tab.top"), I18n.translate("fishlog.tab.sizes"), I18n.translate("fishlog.tab.hourly"), I18n.translate("fishlog.tab.cumul"), I18n.translate("fishlog.tab.records"), hofLbl};
         int tabsW = w - BAIT_TOGGLE_W - 2;
         int tw = tabsW / tabs.length;
         for (int i = 0; i < tabs.length; i++) {
             int tx = x + i * tw;
             boolean active   = tabs[i] == activeTab;
-            boolean disabled = baitMode && tabs[i] == Tab.SIZES;
+            boolean disabled = baitMode && tabs[i] == Tab.SIZES && tabs[i] != Tab.HALL_OF_FAME;
             ctx.fill(tx, y, tx + tw, y + 20, disabled ? ModColors.TAB_DISABLED : active ? ModColors.TAB_ACTIVE : ModColors.TAB_INACTIVE);
             ctx.drawCenteredTextWithShadow(textRenderer, lbl[i], tx + tw/2, y + 6,
                 disabled ? ModColors.TAB_TEXT_DISABLED : active ? ModColors.TEXT_WHITE : ModColors.TEXT_MUTED);
@@ -1736,6 +1743,84 @@ public class FishStatsScreen extends Screen {
     }
 
     // ═════════════════════════════════════════════════════════════════════════
+    //  HALL OF FAME – liste des donateurs
+    // ═════════════════════════════════════════════════════════════════════════
+    private static final int HOF_ROW_H = 14;
+    private static final DateTimeFormatter HOF_DATE_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final int HOF_COLOR_GOLD   = 0xFFFFD700;
+    private static final int HOF_COLOR_SILVER = 0xFFC0C0C0;
+    private static final int HOF_COLOR_BRONZE = 0xFFCD7F32;
+
+    private void renderHallOfFame(DrawContext ctx, int x, int y, int w, int h) {
+        List<DonationData> donations = DonationStore.INSTANCE.getDonations();
+
+        int footerH = 12;
+        int hdrH    = HOF_ROW_H;
+        int listTop = y + hdrH;
+        int listH   = h - footerH - hdrH - 2;
+        int totalPx = donations.size() * HOF_ROW_H;
+
+        // En-tête
+        ctx.fill(x, y, x + w, listTop, ModColors.UI_HEADER_BG);
+        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.hof.col.rank"),   x + 4,      y + 3, ModColors.TEXT_HEADER_COL);
+        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.hof.col.player"), x + 28,     y + 3, ModColors.TEXT_HEADER_COL);
+        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.hof.col.amount"), x + w - 96, y + 3, ModColors.TEXT_HEADER_COL);
+        ctx.drawTextWithShadow(textRenderer, I18n.translate("fishlog.hof.col.date"),   x + w - 56, y + 3, ModColors.TEXT_HEADER_COL);
+
+        if (donations.isEmpty()) {
+            ctx.drawCenteredTextWithShadow(textRenderer,
+                I18n.translate("fishlog.hof.empty"),
+                x + w / 2, listTop + listH / 2, ModColors.TEXT_MUTED);
+        } else {
+            // Lignes (clippées dans la zone liste)
+            int rowY = listTop - hofScrollOffset;
+            for (int i = 0; i < donations.size(); i++) {
+                if (rowY + HOF_ROW_H <= listTop) { rowY += HOF_ROW_H; continue; }
+                if (rowY >= listTop + listH) break;
+
+                DonationData d = donations.get(i);
+                int rank = i + 1;
+
+                ctx.fill(x, rowY, x + w - 6, rowY + HOF_ROW_H,
+                    i % 2 == 0 ? ModColors.ROW_EVEN : ModColors.ROW_ODD);
+
+                int medalColor = switch (rank) {
+                    case 1 -> HOF_COLOR_GOLD;
+                    case 2 -> HOF_COLOR_SILVER;
+                    case 3 -> HOF_COLOR_BRONZE;
+                    default -> ModColors.TEXT_MUTED;
+                };
+                String rankStr = rank <= 3 ? (rank == 1 ? "★" : rank == 2 ? "✦" : "✧") : String.valueOf(rank);
+                ctx.drawTextWithShadow(textRenderer, rankStr, x + 4, rowY + 3, medalColor);
+
+                ctx.drawTextWithShadow(textRenderer, d.player, x + 28, rowY + 3,
+                    rank == 1 ? ModColors.TEXT_PRICE : ModColors.TEXT_WHITE);
+
+                String amtStr = String.format("✧%.2f", d.amount);
+                ctx.drawTextWithShadow(textRenderer, amtStr, x + w - 96, rowY + 3, ModColors.TEXT_PRICE);
+
+                String dateStr = d.date.format(HOF_DATE_FMT);
+                ctx.drawTextWithShadow(textRenderer, dateStr, x + w - 56, rowY + 3, ModColors.TEXT_MUTED);
+
+                rowY += HOF_ROW_H;
+            }
+
+            renderScrollbar(ctx, SB_HOF, x + w - 5, listTop, listH, hofScrollOffset, totalPx, listH);
+        }
+
+        // Footer
+        int fy = y + h - footerH;
+        ctx.fill(x, fy, x + w, y + h, ModColors.UI_FOOTER_BG);
+        ctx.fill(x, fy, x + w, fy + 1, ModColors.UI_FOOTER_LINE);
+        int n = donations.size();
+        String footer = n <= 1
+            ? I18n.translate("fishlog.hof.footer", n)
+            : I18n.translate("fishlog.hof.footer.plural", n);
+        ctx.drawCenteredTextWithShadow(textRenderer, footer, x + w / 2, fy + 2, ModColors.TEXT_MUTED);
+    }
+
+
+    // ═════════════════════════════════════════════════════════════════════════
     //  Interactions
     // ═════════════════════════════════════════════════════════════════════════
 
@@ -1746,6 +1831,7 @@ public class FishStatsScreen extends Screen {
             case SB_BAIT_REC                   -> baitScrollOffset;
             case SB_BAIT_TOP_L, SB_BAIT_TOP_R -> baitTopScrollOffset;
             case SB_BAIT_TYPES                 -> baitTypesScrollOffset;
+            case SB_HOF                        -> hofScrollOffset;
             default -> 0;
         };
     }
@@ -1758,6 +1844,7 @@ public class FishStatsScreen extends Screen {
             case SB_BAIT_REC                   -> baitScrollOffset       = clamped;
             case SB_BAIT_TOP_L, SB_BAIT_TOP_R -> baitTopScrollOffset    = clamped;
             case SB_BAIT_TYPES                 -> baitTypesScrollOffset  = clamped;
+            case SB_HOF                        -> hofScrollOffset        = clamped;
         }
     }
 
@@ -1850,10 +1937,10 @@ public class FishStatsScreen extends Screen {
         if (my >= tabY && my < tabY + 20) {
             int idx = (int)((mx - areaX) / tw);
             if (idx >= 0 && idx < tabs.length) {
-                if (!(baitMode && tabs[idx] == Tab.SIZES)) {
+                if (!(baitMode && tabs[idx] == Tab.SIZES) || tabs[idx] == Tab.HALL_OF_FAME) {
                     activeTab = tabs[idx];
                     scrollOffset = 0; topScrollOffset = 0;
-                    baitScrollOffset = 0; baitTopScrollOffset = 0; baitTypesScrollOffset = 0;
+                    baitScrollOffset = 0; baitTopScrollOffset = 0; baitTypesScrollOffset = 0; hofScrollOffset = 0;
                     if (searchField != null) { searchField.setText(""); updateFiltered(); }
                     if (topSearchField != null) { topSearchField.setText(""); updateTopFiltered(); }
                     if (activeTab == Tab.RECORDS && searchField != null) setFocused(searchField);
@@ -1902,8 +1989,9 @@ public class FishStatsScreen extends Screen {
             }
         } else {
             switch (activeTab) {
-                case RECORDS -> setScrollOffset(SB_RECORDS, scrollOffset    - delta);
-                case TOP     -> setScrollOffset(SB_TOP_R,   topScrollOffset - delta);
+                case RECORDS      -> setScrollOffset(SB_RECORDS, scrollOffset    - delta);
+                case TOP          -> setScrollOffset(SB_TOP_R,   topScrollOffset - delta);
+                case HALL_OF_FAME -> setScrollOffset(SB_HOF,     hofScrollOffset - delta);
                 case RARITY  -> {
                     Set<String> favs = FavoritesStore.INSTANCE.snapshot();
                     int subEntries = (int) favs.stream().filter(f -> fishRarity.containsKey(f)).count();

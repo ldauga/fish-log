@@ -77,5 +77,15 @@
   "fishlog.sizes.tooltip.min":    "Min size: %s: %.1f cm",
   "fishlog.sizes.tooltip.q1":     "1st quartile: %.1f cm",
   "fishlog.sizes.tooltip.median": "Median: %.1f cm",
-  "fishlog.sizes.tooltip.q3":     "3rd quartile: %.1f cm"
+  "fishlog.sizes.tooltip.q3":     "3rd quartile: %.1f cm",
+
+  "fishlog.tab.hall_of_fame": "Hall of Fame",
+
+  "fishlog.hof.empty":            "No donors yet — thank you in advance!",
+  "fishlog.hof.col.rank":         "#",
+  "fishlog.hof.col.player":       "Player",
+  "fishlog.hof.col.amount":       "Donation",
+  "fishlog.hof.col.date":         "Date",
+  "fishlog.hof.footer":           "%d donor",
+  "fishlog.hof.footer.plural":    "%d donors"
 }
