@@ -180,6 +180,9 @@ public class FishStatsScreen extends Screen {
     private int         lastMx, lastMy;
     private List<Text>  pendingTooltip = null;
 
+    // ── Brand "powered by" ────────────────────────────────────────────────────
+    private int brandX, brandY, brandW;
+
     // ── Échelle logarithmique pour SIZES ──────────────────────────────────────
     private boolean sizesLogScale = false;
     private int sizesLogBtnX, sizesLogBtnY;
@@ -523,8 +526,21 @@ public class FishStatsScreen extends Screen {
                 ctx.fill(cX, fy, cX + cW, fy + 1, ModColors.UI_FOOTER_LINE);
             }
             String brand = "powered by @LeLeoOriginel";
-            ctx.drawTextWithShadow(textRenderer, brand,
-                cX + cW - textRenderer.getWidth(brand) - 3, fy + 2, ModColors.TEXT_BRAND);
+            brandW = textRenderer.getWidth(brand);
+            brandX = cX + cW - brandW - 3;
+            brandY = fy + 2;
+            long now = System.currentTimeMillis();
+            int charX = brandX;
+            for (int ci = 0; ci < brand.length(); ci++) {
+                String ch = String.valueOf(brand.charAt(ci));
+                float hue  = ((now / 40 + ci * 18) % 360) / 360f;
+                float bri  = 0.65f + 0.35f * (float)Math.sin(now / 250.0 + ci * 0.4);
+                ctx.drawTextWithShadow(textRenderer, ch, charX, brandY, hueToRgb(hue, bri));
+                charX += textRenderer.getWidth(ch);
+            }
+            if (lastMx >= brandX && lastMx < brandX + brandW && lastMy >= brandY && lastMy < brandY + 9) {
+                pendingTooltip = List.of(Text.literal("Buy me a coffee !"));
+            }
         }
 
         if (pendingTooltip != null) {
@@ -1596,6 +1612,20 @@ public class FishStatsScreen extends Screen {
         ctx.drawTextWithShadow(textRenderer, footerTxt, x + 3, fy + 2, ModColors.TEXT_MUTED_ARGB);
     }
 
+    private static int hueToRgb(float hue, float brightness) {
+        float h = hue * 6f;
+        float c = brightness;
+        float x = c * (1f - Math.abs(h % 2f - 1f));
+        float r, g, b;
+        if      (h < 1f) { r=c; g=x; b=0; }
+        else if (h < 2f) { r=x; g=c; b=0; }
+        else if (h < 3f) { r=0; g=c; b=x; }
+        else if (h < 4f) { r=0; g=x; b=c; }
+        else if (h < 5f) { r=x; g=0; b=c; }
+        else             { r=c; g=0; b=x; }
+        return 0xFF000000 | ((int)(r*255) << 16) | ((int)(g*255) << 8) | (int)(b*255);
+    }
+
     private static int baitColor(String bait) {
         Integer c = BAIT_COL.get(bait);
         if (c != null) return c;
@@ -1733,6 +1763,11 @@ public class FishStatsScreen extends Screen {
 
     @Override
     public boolean mouseClicked(double mx, double my, int button) {
+        // Brand "powered by" – ouvre le chat avec la commande suggérée
+        if (button == 0 && mx >= brandX && mx < brandX + brandW && my >= brandY && my < brandY + 9) {
+            client.setScreen(new net.minecraft.client.gui.screen.ChatScreen("/pay LeLeoOriginel 1000"));
+            return true;
+        }
         // Scrollbars cliquables
         if (button == 0) {
             for (int id = 0; id < SB_COUNT; id++) {
